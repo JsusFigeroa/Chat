@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, TcpStream};
 use std::net::{TcpListener, SocketAddrV4};
+use crate::usuario::State;
+use crate::usuario::Usuario;
 
 pub struct Servidor{
-    users: HashMap<usize, String>,
+    users: HashMap<String, Usuario>,
     numberUsers: usize,
     address: Ipv4Addr,
     port: u16,
@@ -11,7 +13,7 @@ pub struct Servidor{
 
 impl Servidor{
     pub fn new() -> Servidor{
-        let users: HashMap<usize, String> = HashMap::new();
+        let users: HashMap<String, Usuario> = HashMap::new();
         let numberUsers = 0;
         let address = Ipv4Addr::new(127, 0, 0, 1);
         let port = 4444;
