@@ -9,7 +9,7 @@ pub struct Usuario {
     state: State,
 }
 impl Usuario {
-    pub fn new(name: String, id: usize, socket: TcpStream) -> Usuario{
+    pub fn new(name: String, socket: TcpStream) -> Usuario{
         let state = State::Active;
         Usuario {name, socket, state}
     }

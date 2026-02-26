@@ -3,9 +3,9 @@ use serde::{Serialize, Deserialize};
 use serde_json::Map;
 use crate::usuario::{Usuario, State};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum menssages{
+pub enum Menssages{
 
     Identify {
         #[serde(rename = "type")]
