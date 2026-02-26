@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use crate::user::{State, User};
+use serde::{Deserialize, Serialize};
 use serde_json::Map;
-use crate::usuario::{Usuario, State};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum Menssages{
-
+pub enum Menssages {
     Identify {
         #[serde(rename = "type")]
         type_msg: String,
@@ -43,6 +42,5 @@ pub enum Menssages{
         #[serde(rename = "type")]
         type_msg: String,
         users: HashMap<String, State>,
-    }
-
+    },
 }
