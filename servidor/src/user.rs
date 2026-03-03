@@ -1,19 +1,22 @@
 use serde::ser::{SerializeMap, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
-use tokio::io::BufReader;
+use tokio::io::{BufReader, BufWriter};
 use tokio::net::TcpStream;
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 pub struct User {
     pub name: String,
-    socket: BufReader<TcpStream>,
+    reader: BufReader<OwnedReadHalf>,
+    writer: BufWriter<OwnedWriteHalf>,
     state: State,
 }
 impl User {
-    pub fn new(name: String, socket: BufReader<TcpStream>) -> User {
+    pub fn new(name: String, reader: BufReader<OwnedReadHalf>, writer: BufWriter<OwnedWriteHalf>) -> User {
         let state = State::Active;
         User {
             name,
-            socket,
+            reader,
+            writer,
             state,
         }
     }
