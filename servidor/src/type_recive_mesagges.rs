@@ -5,18 +5,11 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum Menssages {
+pub enum TypeReciveMesagges {
     Identify {
         #[serde(rename = "type")]
         type_msg: String,
         username: String,
-    },
-    Response {
-        #[serde(rename = "type")]
-        type_msg: String,
-        operation: String,
-        result: String,
-        extra: String,
     },
     NewUser {
         #[serde(rename = "type")]
@@ -28,19 +21,49 @@ pub enum Menssages {
         type_msg: String,
         status: String,
     },
-    NewStatus {
-        #[serde(rename = "type")]
-        type_msg: String,
-        username: String,
-        status: String,
-    },
     Users {
         #[serde(rename = "type")]
         type_msg: String,
     },
-    GiveUsers {
+    TextFrom {
         #[serde(rename = "type")]
         type_msg: String,
-        users: HashMap<String, State>,
+        username: String,
+        text: String,
     },
+    PublicText {
+        #[serde(rename = "type")]
+        type_msg: String,
+        text: String,
+    },
+    RoomMesagge {
+        #[serde(rename = "type")]
+        type_msg: String,
+        roomname: String,
+    },
+    Invitation {
+        #[serde(rename = "type")]
+        type_msg: String,
+        roomname: String,
+        usernames: String,
+    },
+    JoinRoom {
+        #[serde(rename = "type")]
+        type_msg: String,
+        roomname: String,
+    },
+    RoomText {
+        #[serde(rename = "type")]
+        type_msg: String,
+        roomname: String,
+        text: String,
+    },
+    Disconect {
+        #[serde(rename = "type")]
+        type_msg: String,
+    }
+
+
+
+
 }

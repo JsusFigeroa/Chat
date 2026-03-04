@@ -8,7 +8,7 @@ Mensajes que recibe el servidor
 
 Identifica a un usuario en el servidor:
 
-
+Implementado (Server)
 
 ```
 { "type": "IDENTIFY",
@@ -17,9 +17,9 @@ Identifica a un usuario en el servidor:
 
 En caso de éxito el servidor responde:
 
-
-Implementado
-Caso considerado
+Implementado (Server)
+Implementado (Cliente)
+Caso considerado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -30,8 +30,8 @@ Caso considerado
 
 y además manda el mensaje `NEW_USER` a los demás clientes conectados:
 
-Implementado
-
+Implementado (Cliente)
+Implementado (Server)
 
 ```
 { "type": "NEW_USER",
@@ -40,8 +40,9 @@ Implementado
 
 Si el nombre de usuario ya está siendo usado el servidor responde:
 
-Implementado
-Caso considerado
+Implementado (Server)
+Implementado (Cliente)
+Caso considerado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -54,6 +55,8 @@ Caso considerado
 
 Cambia el estado de un usuario:
 
+Implementado (Server)
+
 ```
 { "type": "STATUS",
   "status": "AWAY" }
@@ -62,7 +65,8 @@ Cambia el estado de un usuario:
 Si el estado cambia exitosamente, el servidor manda el mensaje `NEW_STATUS` a
 los demás clientes conectados:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "NEW_STATUS",
@@ -74,13 +78,16 @@ Implementado
 
 Regresa la lista de usuarios en el chat:
 
+Implementado (Server)
+
 ```
 { "type": "USERS" }
 ```
 
 El servidor responde un diccionario con los nombres de usuario y sus estados:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "USER_LIST",
@@ -94,6 +101,8 @@ Implementado
 
 Manda un texto privado a un usuario: 
 
+Implementado (Server)
+
 ```
 { "type": "TEXT",
   "username": "Luis",
@@ -103,7 +112,8 @@ Manda un texto privado a un usuario:
 Si el usuario destinatario existe el servidor no responde nada y envía el
 mensaje `TEXT_FROM` al usuario:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "TEXT_FROM",
@@ -113,7 +123,8 @@ Implementado
 
 Si el usuario destinatario no existe, el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -126,6 +137,8 @@ Implementado
 
 Manda un texto público a todos los usuarios conectados:
 
+Implementado (Server)
+
 ```
 { "type": "PUBLIC_TEXT",
   "text": "¡Hola a todos!" }
@@ -134,7 +147,8 @@ Manda un texto público a todos los usuarios conectados:
 El servidor no responde nada y se envía el mensaje `PUBLIC_TEXT_FROM` a los
 demás usuarios en el chat:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "PUBLIC_TEXT_FROM",
@@ -146,7 +160,7 @@ Implementado
 
 Crea un cuarto en el chat:
 
-
+Implementado (Server)
 
 ```
 { "type": "NEW_ROOM",
@@ -155,7 +169,8 @@ Crea un cuarto en el chat:
 
 Si el cuarto se crea exitosamente el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -169,8 +184,8 @@ inmediatamente después.
 
 Si el nombre del cuarto ya existe, el servidor responde:
 
-
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -184,7 +199,7 @@ Implementado
 Invita a uno o múltiples usuarios a un cuarto; únicamente usuarios en un cuarto
 pueden invitar a otros usuarios a ese cuarto:
 
-
+Implementado (Server)
 
 ```
 { "type": "INVITE",
@@ -195,7 +210,8 @@ pueden invitar a otros usuarios a ese cuarto:
 El cuarto y todos los usuarios deben existir, en cuyo caso el servidor no
 responde nada y envía el mensaje `INVITATION` a cada usuario en la lista:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "INVITATION",
@@ -205,7 +221,8 @@ Implementado
 
 Si el cuarto no existe, el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -217,7 +234,8 @@ Implementado
 Si uno o más de los usuarios no existe, al detectar el primero el servidor
 responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -234,6 +252,8 @@ ignora y no se le envía el mensaje `INVITATION`.
 Se une a un cuarto; el usuario debió previamente ser invitado al mismo para
 poder unirse:
 
+Implementado (Server)
+
 ```
 { "type": "JOIN_ROOM",
   "roomname": "Sala 1" }
@@ -242,7 +262,8 @@ poder unirse:
 Si el cuarto existe y el usuario fue invitado previamente al mismo, el servidor
 responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -254,7 +275,8 @@ Implementado
 Además el usuario se une al cuarto y el servidor envía el mensaje `JOINED_ROOM`
 a todos los usuarios en el cuarto:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "JOINED_ROOM",
@@ -264,7 +286,8 @@ Implementado
 
 Si el cuarto no existe el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -275,7 +298,8 @@ Implementado
 
 Si el usuario no fue invitado previamente al cuarto, el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -286,7 +310,7 @@ Implementado
 
 # `ROOM_USERS`
 
-
+Implementado (Server)
 
 ```
 { "type": "ROOM_USERS",
@@ -296,7 +320,8 @@ Implementado
 Si el cuarto existe y el usuario se ha unido al mismo, el servidor responde con
 un diccionario con los usuarios y su estado:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "ROOM_USER_LIST",
@@ -309,7 +334,8 @@ Implementado
 
 Si el cuarto no existe el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -321,7 +347,8 @@ Implementado
 Si el cuarto existe pero el usuario no ha sido invitado, o ha sido invitado pero
 no se ha unido, el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -334,6 +361,8 @@ Implementado
 
 Manda un text a un cuarto.
 
+Implementado (Server)
+
 ```
 { "type": "ROOM_TEXT",
   "roomname": "Sala 1",
@@ -344,7 +373,8 @@ Si el cuarto existe y el usuario se ha unido al mismo, el servidor no responde
 nada y envía el mensaje `ROOM_TEXT_FROM` a todos los demás usuarios en el
 cuarto:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "ROOM_TEXT_FROM",
@@ -355,7 +385,8 @@ Implementado
 
 Si el cuarto no existe el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -367,7 +398,8 @@ Implementado
 Si el cuarto existe pero el usuario no ha sido invitado, o ha sido invitado pero
 no se ha unido, el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -378,7 +410,7 @@ Implementado
 
 # `LEAVE_ROOM`
 
-
+Implementado (Server)
 
 El usuario abandona un cuarto:
 
@@ -390,7 +422,8 @@ El usuario abandona un cuarto:
 Si el cuarto existe y el usuario se ha unido al mismo, el servidor no responde
 nada y envía el mensaje `LEFT_ROOM` a los demás usuarios en el cuarto:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "LEFT_ROOM",
@@ -400,7 +433,8 @@ Implementado
 
 Si el cuarto no existe el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -412,7 +446,8 @@ Implementado
 Si el cuarto existe pero el usuario no ha sido invitado, o ha sido invitado pero
 no se ha unido, el servidor responde:
 
-Implementado
+Implementado (Server)
+Implementado (Cliente)
 
 ```
 { "type": "RESPONSE",
@@ -426,7 +461,7 @@ Implementado
 Desconecta al usuario del chat, incluyendo abandonar todos los cuartos donde se
 haya unido.
 
-
+Implementado (Server)
 
 ```
 { "type": "DISCONNECT" }
@@ -435,7 +470,7 @@ haya unido.
 El servidor no responde nada y envía el mensaje `DISCONNECTED` a todos los
 usuarios conectados:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "DISCONNECTED",
@@ -444,6 +479,8 @@ Implementado
 
 Además, si el usuario se había unido a cuartos, envía el mensaje `LEFT_ROOM` a
 cada cuarto:
+
+Implementado (Server)
 
 ```
 { "type": "LEFT_ROOM",
@@ -460,7 +497,7 @@ Mensajes que recibe el cliente
 
 Un nuevo usario se conectó e identificó:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "NEW_USER",
@@ -473,7 +510,7 @@ Implementado
 
 Un usuario cambió su estado:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "NEW_STATUS",
@@ -485,7 +522,7 @@ Implementado
 
 En respuesta a `USERS`
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "USER_LIST",
@@ -501,7 +538,7 @@ Implementado
 
 Recibe un texto privado:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "TEXT_FROM",
@@ -515,7 +552,7 @@ Implementado
 
 Recibe un texto público:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "PUBLIC_TEXT_FROM",
@@ -529,7 +566,7 @@ Implementado
 
 Un nuevo usuario se unió a un cuarto:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "JOINED_ROOM",
@@ -543,7 +580,7 @@ Implementado
 
 En respuesta a `ROOM_USERS`
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "ROOM_USER_LIST",
@@ -558,7 +595,7 @@ Implementado
 
 Recibe un texto en un cuarto:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "ROOM_TEXT_FROM",
@@ -571,7 +608,7 @@ Implementado
 
 Un usuario abandonó un cuarto:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "LEFT_ROOM",
@@ -583,7 +620,7 @@ Implementado
 
 Un usuario se desconectó:
 
-Implementado
+Implementado (Cliente)
 
 ```
 { "type": "DISCONNECTED",
