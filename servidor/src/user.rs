@@ -1,7 +1,5 @@
-use serde::ser::{SerializeMap, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use tokio::io::{BufReader, BufWriter};
-use tokio::net::TcpStream;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 pub struct User {
