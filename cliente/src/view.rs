@@ -55,7 +55,7 @@ pub fn print_succes_identify(username: String) {
 fn aux_get_addr(args: String) -> Result<SocketAddrV4, ()> {
     let arg: Vec<&str> = args.split_whitespace().collect();
     if arg.len() != 5 {
-        ()
+        return Err(())
     }
     let a: u8 = arg[0].parse().map_err(|_| ())?;
     let b: u8 = arg[1].parse().map_err(|_| ())?;
