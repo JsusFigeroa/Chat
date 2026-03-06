@@ -1,8 +1,7 @@
 use crate::server::server_mesagges::{generate_not_identified_msg, generate_not_valid_msg, generate_succes_identify_response, generate_user_already_exists_response};
-use crate::type_recive_mesagges::TypeReciveMesagges;
+use crate::type_recive_messages::TypeReciveMessages;
 use crate::user::User;
 use serde_json;
-use std::clone;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
@@ -87,7 +86,7 @@ impl Server {
             if bytes_leidos == 0 {
                 buf_writer.shutdown().await.expect("Error al cerrar conexión");
             }
-            let mensagge: TypeReciveMesagges;
+            let mensagge: TypeReciveMessages;
             match serde_json::from_str(&lectura) {
                 Ok(text) => {
                     mensagge = text;
@@ -100,7 +99,7 @@ impl Server {
                     return;
                 }
             }
-            if let TypeReciveMesagges::Identify { type_msg, username } = mensagge {
+            if let TypeReciveMessages::Identify { type_msg, username } = mensagge {
 
                 if type_msg != "IDENTIFY" {
                     let msg = generate_not_identified_msg().expect("Ocurrio un error al generar el mensaje");
@@ -142,7 +141,7 @@ mod test {
     use tokio::net::{TcpListener, TcpStream};
     use tokio::io::BufWriter;
 
-    use crate::{server::Server, type_recive_mesagges::TypeReciveMesagges};
+    use crate::{server::Server, type_recive_messages::TypeReciveMessages};
 
     async fn setup_server(port: u16) -> (TcpStream, TcpStream, Arc<Mutex<Server>>){
         let server = Server::new_debug(127,0,0,1, port);
@@ -168,7 +167,7 @@ mod test {
     #[tokio::test]
     async fn test_process_conection(){
         let (server_socket, client_socket, server) = setup_server(8080).await;
-        let msg = TypeReciveMesagges::Identify { 
+        let msg = TypeReciveMessages::Identify { 
             type_msg: String::from("IDENTIFY"),
             username: String::from("Karla") 
         };
@@ -215,7 +214,7 @@ mod test {
         let (_, sok_writer_1) = client_1.into_split();
         let mut buf_writer_1 = BufWriter::new(sok_writer_1);
         
-        let msg = TypeReciveMesagges::Identify { 
+        let msg = TypeReciveMessages::Identify { 
             type_msg: String::from("IDENTIFY"), 
             username: String::from("Karla") 
         };

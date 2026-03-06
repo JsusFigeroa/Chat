@@ -1,5 +1,5 @@
 use crate::server::server_mesagges::{generate_not_identified_msg, generate_succes_identify_response, generate_not_valid_msg, generate_user_already_exists_response};
-use crate::type_recive_mesagges::TypeReciveMesagges;
+use crate::type_recive_messages::TypeReciveMessages;
 use crate::user::User;
 use::tokio::io::{BufReader, BufWriter, AsyncBufReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -16,7 +16,7 @@ pub(super) async fn retry_identify(mut reader: BufReader<OwnedReadHalf>, mut wri
             return;
         }
         
-        let mensagge: TypeReciveMesagges;
+        let mensagge: TypeReciveMessages;
             match serde_json::from_str(&line) {
                 Ok(text) => {
                     mensagge = text;
@@ -29,7 +29,7 @@ pub(super) async fn retry_identify(mut reader: BufReader<OwnedReadHalf>, mut wri
                     return;
                 }
             }
-            if let TypeReciveMesagges::Identify { type_msg, username } = mensagge {
+            if let TypeReciveMessages::Identify { type_msg, username } = mensagge {
 
                 if type_msg != "IDENTIFY" {
                     let msg = generate_not_identified_msg().expect("Ocurrio un error al generar el mensaje");

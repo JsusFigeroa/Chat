@@ -1,28 +1,21 @@
-use crate::user::{State, User};
 use serde::{Deserialize, Serialize};
-use serde_json::Map;
-use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum TypeSendMesagges {
-    Response {
-        #[serde(rename = "type")]
-        type_msg: String,
-        operation: String,
-        result: String,
-        extra: String,
-    },
-    NewStatus {
+pub enum TypeReciveMessages {
+    Identify {
         #[serde(rename = "type")]
         type_msg: String,
         username: String,
-        status: State,
     },
-    GiveUsers {
+    Status {
         #[serde(rename = "type")]
         type_msg: String,
-        users: HashMap<String, State>,
+        status: String,
+    },
+    Users {
+        #[serde(rename = "type")]
+        type_msg: String,
     },
     TextFrom {
         #[serde(rename = "type")]
@@ -30,49 +23,35 @@ pub enum TypeSendMesagges {
         username: String,
         text: String,
     },
+    PublicText {
+        #[serde(rename = "type")]
+        type_msg: String,
+        text: String,
+    },
+    RoomMesagge {
+        #[serde(rename = "type")]
+        type_msg: String,
+        roomname: String,
+    },
     Invitation {
         #[serde(rename = "type")]
         type_msg: String,
-        usernamme: String,
         roomname: String,
+        usernames: String,
     },
-    RoomOperations {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-        username: String,
-    },
-    RoomUsers {
+    JoinRoom {
         #[serde(rename = "type")]
         type_msg: String,
         roomname: String,
-        users: HashMap<String, State>,
-    },
-    IdentifyOrDisconect {
-        #[serde(rename = "type")]
-        type_msg: String,
-        username: String,
-    },
-    UsersList {
-        #[serde(rename = "type")]
-        type_msg: String,
-        users: HashMap<String, State>
     },
     RoomText {
         #[serde(rename = "type")]
         type_msg: String,
         roomname: String,
-        username: String,
-        text: String
+        text: String,
     },
-    Invalid {
+    Disconect {
         #[serde(rename = "type")]
         type_msg: String,
-        operation: String,
-        result: String
     }
-}
-
-impl TypeSendMesagges {
-    
 }
