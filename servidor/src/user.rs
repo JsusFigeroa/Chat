@@ -1,20 +1,19 @@
 use serde::{Deserialize, Serialize};
 use tokio::io::{BufReader, BufWriter};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use std::sync::mpsc::Sender;
 
 pub struct User {
     pub name: String,
-    reader: BufReader<OwnedReadHalf>,
-    writer: BufWriter<OwnedWriteHalf>,
-    state: State,
+    pub tx : Sender<Vec<u8>>,
+    pub state: State,
 }
 impl User {
-    pub fn new(name: String, reader: BufReader<OwnedReadHalf>, writer: BufWriter<OwnedWriteHalf>) -> User {
+    pub fn new(name: String, tx: Sender<Vec<u8>>) -> User {
         let state = State::Active;
         User {
             name,
-            reader,
-            writer,
+            tx,
             state,
         }
     }

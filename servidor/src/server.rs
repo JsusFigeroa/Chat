@@ -1,132 +1,201 @@
 use crate::server::server_mesagges::{generate_not_identified_msg, generate_not_valid_msg, generate_succes_identify_response, generate_user_already_exists_response};
 use crate::type_recive_messages::TypeReciveMessages;
 use crate::user::User;
+use crate::view;
+use crate::letter::Letter;
+use dashmap::DashMap;
 use serde_json;
-use std::collections::HashMap;
+use std::sync::mpsc::{Receiver as Receptor, Sender as Senderr, self};
 use std::net::{Ipv4Addr, SocketAddrV4};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 use tokio::net::{TcpListener, TcpStream};
 use std::sync::{Arc};
-use tokio::sync::Mutex;
+use crossbeam_channel::{unbounded, Sender, Receiver};
+use tokio_util::codec::{FramedRead, LinesCodec};
+use futures::stream::StreamExt;
 
 pub mod server_mesagges;
 pub mod aux_functions;
 
 pub struct Server {
-    users: HashMap<String, User>,
-    adress: Ipv4Addr,
+    users: Arc<DashMap<String, User>>,
     port: u16,
-    active: bool,
 }
 
 impl Server {
-    pub fn new(adress: Ipv4Addr, port: u16) -> Server {
-        let users: HashMap<String, User> = HashMap::new();
-        let active = true;
-
+    pub fn new(port: u16) -> Server {
+        let users = Arc::new(DashMap::new());
         Server {
             users,
-            adress,
             port,
-            active,
         }
     }
 
-    pub fn new_default() -> Server {
-        let users: HashMap<String, User> = HashMap::new();
-        let active = true;
-        let adress = Ipv4Addr::new(127, 0, 0, 1);
-        let port = 4444;
-
-        Server { users, adress, port, active }
-    }
-
-    pub fn new_debug(a: u8, b: u8, c: u8, d: u8, port: u16) -> Server {
-        let users: HashMap<String, User> = HashMap::new();
-        let adress = Ipv4Addr::new(a, b, c, d);
-        let port = port;
-        let active = true;
-        Server {
-            users,
-            adress,
-            port,
-            active,
-        }
-    }
-
-    pub async fn run(servidor: Arc<Mutex<Self>>){
-        let clone_server = Arc::clone(&servidor);
-        println!("Aceptando conexiones");
-        Server::get_conections(clone_server).await;
+    pub async fn run(){
+        let port = view::get_port();
+        let server = Server::new(port);
+        let atm_server = Arc::new(server);
+        //println!("Aceptando conexiones");
+        Server::get_conections(atm_server, false).await;
     }  
 
-    async fn get_conections(clone_sever: Arc<Mutex<Server>>) {
-        let (adress, port) = {
-            let locked_server = clone_sever.lock().await;
-            (locked_server.adress, locked_server.port)
-        };
-        let listener = TcpListener::bind(SocketAddrV4::new(adress, port))
-            .await
-            .unwrap();
+    async fn run_local(){
+        let server = Server::new(8080);
+        let clone_server = Arc::new(server);
+        //println!("Aceptando conexiones");
+        Server::get_conections(clone_server, true).await;
+    }
+
+    async fn get_conections(server: Arc<Server>, local: bool) {
+        let addr: SocketAddrV4;
+        if local {
+            addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), server.port);
+        }
+        else {
+            addr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), server.port);
+        }
+        let listener = TcpListener::bind(addr).await.unwrap();
+        let (tx, rx) = unbounded::<Letter<Vec<u8>>>();
+        Server::build_msg_processors(rx);
         loop {
             let (socket, _) = listener.accept().await.unwrap();
-            let server_for_client = Arc::clone(&clone_sever);
-            tokio::spawn(async move { Server::process_conection(socket, server_for_client).await });
+            let server_for_client = Arc::clone(&server);
+            let tx_for_client = tx.clone();
+            tokio::spawn(async move { Server::process_conection(socket, server_for_client, tx_for_client).await });
         }
     } 
 
-    async fn process_conection(socket: TcpStream, server: Arc<Mutex<Server>>) {
-        let (sok_reader, sok_writter) = socket.into_split();
-        let mut buf_reader = BufReader::new(sok_reader);
-        let mut buf_writer = BufWriter::new(sok_writter);
-        let mut lectura = String::new();
-        let bytes_leidos = buf_reader.read_line(&mut lectura).await.unwrap();
-        let lectura = lectura.trim();
-
-            if bytes_leidos == 0 {
-                buf_writer.shutdown().await.expect("Error al cerrar conexión");
-            }
-            let mensagge: TypeReciveMessages;
+    async fn process_conection(socket: TcpStream, server: Arc<Server>, global_tx: Sender<Letter<Vec<u8>>>) {
+        let (sok_reader, mut sok_writter) = socket.into_split();
+        let (user_tx, user_rx) = mpsc::channel::<Vec<u8>>();
+        let mut reader = FramedRead::new(sok_reader, LinesCodec::new_with_max_length(124));
+        let Ok(msg) = reader.next().await.unwrap() else {
+            return ;
+        };
+        let lectura = msg.trim();
+        let mensagge: TypeReciveMessages;
             match serde_json::from_str(&lectura) {
                 Ok(text) => {
                     mensagge = text;
                 }
                 Err(_) => {
                     let msg = generate_not_valid_msg().expect("Error al generar el mensaje de json inválido");
-                    buf_writer.write_all(&msg).await.expect("No fue posible escribir en el socket");
-                    buf_writer.flush().await.unwrap_or_default();
-                    buf_writer.shutdown().await.expect("Error al cerrar la conexión");
+                    let Ok(_) = sok_writter.write(&msg).await else {
+                        return ;
+                    };
+                    let Ok(_) = sok_writter.shutdown().await else {
+                        return ;
+                    };
                     return;
                 }
             }
-            if let TypeReciveMessages::Identify { type_msg, username } = mensagge {
+            if let TypeReciveMessages::Identify { type_msg, mut username } = mensagge {
 
                 if type_msg != "IDENTIFY" {
                     let msg = generate_not_identified_msg().expect("Ocurrio un error al generar el mensaje");
-                    buf_writer.flush().await.unwrap_or_default();
-                    buf_writer.write_all(&msg).await.expect("Error al escribir en socket");
-                    return aux_functions::retry_identify(buf_reader, buf_writer, server).await;
+                    let Ok(_) = sok_writter.write(&msg).await else {
+                        return ;
+                    };
+                    let Ok(new_username) = aux_functions::retry_identify(&mut reader).await else {
+                        let msg = server_mesagges::generate_not_valid_msg().unwrap();
+                        let Ok(_) = sok_writter.write(&msg).await else {
+                            return ;
+                        };
+                        return;
+                    };
+                    username = new_username;
                 }
 
-                let username_lowercase = username.to_lowercase();
-                //let mut locked_server = server.lock().await;
+                let mut username_lowercase = username.to_lowercase();
 
-                if server.lock().await.users.contains_key(&username_lowercase) {
+                if server.users.contains_key(&username_lowercase) {
                     let msg = generate_user_already_exists_response(&username).expect("No fue posible generar el mensaje");
-                    buf_writer.write_all(&msg).await.expect("No fue posible escribir en el stream");
-                    buf_writer.flush().await.unwrap_or_default();
-                    let clone_server = Arc::clone(&server);
-                    return aux_functions::retry_identify(buf_reader, buf_writer, clone_server).await;
+                    let Ok(_) = sok_writter.write(&msg).await else {
+                        return ;
+                    };
+                    let Ok(new_username) = aux_functions::retry_identify(&mut reader).await else {
+                        let msg = server_mesagges::generate_not_valid_msg().expect("Error el generar mensaje");
+                        let Ok(_) = sok_writter.write(&msg).await else {
+                            return ;
+                        };
+                        return;
+                    };
+                    let new_username_lower = new_username.to_lowercase();
+                    if server.users.contains_key(&new_username_lower) {
+                        let msg = server_mesagges::generate_not_valid_msg().expect("Error el generar mensaje");
+                        let Ok(_) = sok_writter.write(&msg).await else {
+                            return ;
+                        };
+                        return;
+                    }
+                    username = new_username;
                 }
-
-                let mut locked_server = server.lock().await;
+                username_lowercase = username.to_lowercase();
+                let user_tx_clone = user_tx.clone();
+                let username_clone = username.clone();
+                tokio::spawn(async move {
+                    Server::build_msg_client_processor(user_tx_clone, username_clone, reader, global_tx);
+                });
                 let msg = generate_succes_identify_response(&username).expect("No fue posible generar el mensaje");
-                buf_writer.write_all(&msg).await.expect("No fue posible escribir");
-                buf_writer.flush().await.unwrap_or_default();
+                let Ok(_) = sok_writter.write(&msg).await else {
+                    return ;
+                };
+                tokio::spawn(async move {
+                    Server::build_msg_sender_to_client(user_rx, sok_writter);
+                });
                 println!("Nuevo usuario con nombre {} conectado", username);
-                let new_user = User::new(username, buf_reader, buf_writer);
-                locked_server.users.insert(username_lowercase, new_user);
+                let new_user = User::new(username, user_tx);
+                server.users.insert(username_lowercase, new_user);
             }
+    }
+
+    async fn build_msg_processors(rx: Receiver<Letter<Vec<u8>>>){
+        let rx1 = rx.clone();
+        let rx2 = rx.clone();
+        let rx3 = rx.clone();
+        tokio::spawn(async move {
+            Server::process_letter(rx1);
+        });
+        tokio::spawn(async move {
+            Server::process_letter(rx2);
+        });
+        tokio::spawn(async move {
+            Server::process_letter(rx3);
+        });
+    }
+
+    async fn process_letter(rx: Receiver<Letter<Vec<u8>>>) {
+        unimplemented!();
+    }
+
+    async fn build_msg_sender_to_client<T: AsyncWrite + Unpin>(rx: Receptor<Vec<u8>>, mut writer: T) {
+        for msg in rx {
+            let Ok(_) = writer.write(&msg).await else {
+                return ;
+            };
+        }
+    }
+
+    async fn build_msg_client_processor<T: AsyncRead + Unpin>(user_tx: Senderr<Vec<u8>>, 
+                                                             username: String,
+                                                             mut reader: FramedRead<T, LinesCodec>,
+                                                            global_tx: Sender<Letter<Vec<u8>>>) {
+        while let Some(result) = reader.next().await {
+            match result {
+                Ok(msg) => {
+                    //Pasar el mensaje recibido "msg" a algun tipo de mensaje de entrada
+                    let letter = aux_functions::generate_letter(username, user_tx, msg);
+                    global_tx.send(letter);
+                }
+                Err(_) => {
+                    //Tiene que mandar la señal para desconectar el cliente.
+                    //Es decir cerrar su transmisor para que no se sigan
+                    //enviando mensajes.
+                    break;
+                }
+            }
+        }
+
     }
     
 
