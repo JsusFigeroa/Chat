@@ -1,9 +1,15 @@
 use crate::type_recive_messages::TypeReciveMessages;
-use crossbeam_channel::Sender;
+use std::sync::mpsc::Sender;
 
 
 pub struct Letter<T> {
-    sender: String,
-    msg: TypeReciveMessages,
+    usr_sender: String,
+    msg: String,
     reply_to: Sender<T>
+}
+
+impl Letter<T> {
+    pub(crate) fn new<T>(usr_sender: String, msg: String, reply_to: Sender<T>) -> Letter<T> {
+        Letter { usr_sender, msg, reply_to}
+    }
 }

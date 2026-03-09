@@ -36,7 +36,5 @@ pub(super) async fn retry_identify<T: Unpin + AsyncRead>(reader: &mut FramedRead
     }
 }
 
-pub(super) fn generate_letter(username: String, tx: Senderr<Vec<u8>>, msg: TypeReciveMessages) -> Letter<Vec<u8>>{
-    unimplemented!()
-}
+
 

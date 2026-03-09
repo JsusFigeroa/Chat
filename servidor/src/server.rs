@@ -1,4 +1,4 @@
-use crate::server::server_mesagges::{generate_not_identified_msg, generate_not_valid_msg, generate_succes_identify_response, generate_user_already_exists_response};
+use crate::server::server_mesagges::{generate_disconected_msg, generate_not_identified_msg, generate_not_valid_msg, generate_succes_identify_response, generate_user_already_exists_response};
 use crate::type_recive_messages::TypeReciveMessages;
 use crate::user::User;
 use crate::view;
@@ -165,17 +165,23 @@ impl Server {
     }
 
     async fn process_letter(rx: Receiver<Letter<Vec<u8>>>) {
+        //Si recibe una solicitud de desconexión sacar al usuario de la lista para cerrar su transmisor.
         unimplemented!();
     }
 
     async fn build_msg_sender_to_client<T: AsyncWrite + Unpin>(rx: Receptor<Vec<u8>>, mut writer: T) {
+        
         for msg in rx {
             let Ok(_) = writer.write(&msg).await else {
+
                 return ;
             };
         }
     }
 
+    ///Función que genera el receptor de mensajes del cliente, si hay algún mensaje se lee
+    /// y se envia al procesador global de mensajes, si se sobrepasa el limite del búffer
+    /// o hay algun error de lectura se cierra la conexión.
     async fn build_msg_client_processor<T: AsyncRead + Unpin>(user_tx: Senderr<Vec<u8>>, 
                                                              username: String,
                                                              mut reader: FramedRead<T, LinesCodec>,
@@ -183,14 +189,17 @@ impl Server {
         while let Some(result) = reader.next().await {
             match result {
                 Ok(msg) => {
-                    //Pasar el mensaje recibido "msg" a algun tipo de mensaje de entrada
-                    let letter = aux_functions::generate_letter(username, user_tx, msg);
+                    let letter = Letter::new(username.clone(), msg, user_tx.clone());
                     global_tx.send(letter);
                 }
                 Err(_) => {
                     //Tiene que mandar la señal para desconectar el cliente.
                     //Es decir cerrar su transmisor para que no se sigan
                     //enviando mensajes.
+
+                    let message = generate_disconected_msg(&username).expect("Error generando mensaje");
+                    let letter = Letter::new(username, message, user_tx);
+                    global_tx.send(letter);
                     break;
                 }
             }
