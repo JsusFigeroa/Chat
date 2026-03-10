@@ -1,6 +1,7 @@
 use crate::server::server_mesagges::{generate_not_identified_msg, generate_succes_identify_response, generate_not_valid_msg, generate_user_already_exists_response};
 use crate::type_recive_messages::TypeReciveMessages;
 use crate::type_send_messages::TypeSendMessages;
+use std::collections::HashMap;
 use std::sync::mpsc::{Receiver as Receptor, Sender as Senderr, self};
 use crate::user::User;
 use tokio::io::AsyncRead;
@@ -34,6 +35,18 @@ pub(super) async fn retry_identify<T: Unpin + AsyncRead>(reader: &mut FramedRead
     else {
         return Err(());
     }
+}
+
+/// Esta función genera un mapa del cual cada llave corresponde a el nombre de usuario y
+/// el valor es su estado actual.
+pub(super) fn generate_map_users(users: Arc<DashMap<String, User>>) -> HashMap<String, State> {
+    let mut map = HashMap::new();
+    for kv in users.iter() {
+        let state = kv.value().state;
+        let username = kv.value().name.clone();
+        map.insert(username, state);
+    }
+    map
 }
 
 

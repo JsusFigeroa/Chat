@@ -1,10 +1,12 @@
-use crate::server::server_mesagges::{generate_disconected_msg, generate_not_identified_msg, generate_not_valid_msg, generate_succes_identify_response, generate_user_already_exists_response};
+use crate::server::aux_functions::generate_map_users;
+use crate::server::server_mesagges::{generate_disconected_msg, generate_new_status_msg, generate_new_user_msg, generate_not_identified_msg, generate_not_valid_msg, generate_public_text_from, generate_succes_identify_response, generate_text_from_msg, generate_user_already_exists_response, generate_user_not_exist_response, generate_users_msg};
 use crate::type_recive_messages::TypeReciveMessages;
-use crate::user::User;
+use crate::type_send_messages::TypeSendMessages;
+use crate::user::{self, State, User};
 use crate::view;
 use crate::letter::Letter;
 use dashmap::DashMap;
-use serde_json;
+use serde_json::{self, ser};
 use std::sync::mpsc::{Receiver as Receptor, Sender as Senderr, self};
 use std::net::{Ipv4Addr, SocketAddrV4};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
@@ -56,7 +58,7 @@ impl Server {
         }
         let listener = TcpListener::bind(addr).await.unwrap();
         let (tx, rx) = unbounded::<Letter<Vec<u8>>>();
-        Server::build_msg_processors(rx);
+        Server::build_msg_processors(rx, server.clone());
         loop {
             let (socket, _) = listener.accept().await.unwrap();
             let server_for_client = Arc::clone(&server);
@@ -134,7 +136,7 @@ impl Server {
                 let user_tx_clone = user_tx.clone();
                 let username_clone = username.clone();
                 tokio::spawn(async move {
-                    Server::build_msg_client_processor(user_tx_clone, username_clone, reader, global_tx);
+                    Server::build_msg_client_processor(user_tx_clone, username_clone, reader, global_tx.clone());
                 });
                 let msg = generate_succes_identify_response(&username).expect("No fue posible generar el mensaje");
                 let Ok(_) = sok_writter.write(&msg).await else {
@@ -145,35 +147,138 @@ impl Server {
                 });
                 println!("Nuevo usuario con nombre {} conectado", username);
                 let new_user = User::new(username, user_tx);
+                let msg_new_user = TypeReciveMessages::Identify { type_msg: String::from("NEW_USER"), username: new_user.name.clone() };
+                let letter = Letter::new(new_user.name.clone(), msg_new_user, new_user.tx.clone());
                 server.users.insert(username_lowercase, new_user);
+                global_tx.send(letter);    
             }
     }
 
-    async fn build_msg_processors(rx: Receiver<Letter<Vec<u8>>>){
+    async fn build_msg_processors(rx: Receiver<Letter<Vec<u8>>>, server: Arc<Server>){
         let rx1 = rx.clone();
         let rx2 = rx.clone();
         let rx3 = rx.clone();
+        let s1 = server.clone();
+        let s3 = server.clone();
+        let s2 = server.clone();
         tokio::spawn(async move {
-            Server::process_letter(rx1);
+            Server::process_letter(rx1, s1);
         });
         tokio::spawn(async move {
-            Server::process_letter(rx2);
+            Server::process_letter(rx2, s2);
         });
         tokio::spawn(async move {
-            Server::process_letter(rx3);
+            Server::process_letter(rx3, s3);
         });
     }
 
-    async fn process_letter(rx: Receiver<Letter<Vec<u8>>>) {
-        //Si recibe una solicitud de desconexión sacar al usuario de la lista para cerrar su transmisor.
-        unimplemented!();
+    /// Recibe una carta por la cola de mensajes y se encarga de procesar y llevar a cabo la acción correspondiente.
+    /// Ejecuta las acciones correspondientes para cada mensaje, en particular para disconect solo elimina al usuario
+    /// de la lista de usuarios (y grupos).
+    async fn process_letter(rx: Receiver<Letter<Vec<u8>>>, server: Arc<Server>) {
+        for letter in rx {
+            if !server.users.contains_key(&letter.usr_sender.to_lowercase()) {
+                continue;
+            }
+            match letter.msg {
+                TypeReciveMessages::PublicText { type_msg, text } => {
+                    if type_msg == "PUBLIC_TEXT" {
+                        for kv in server.users.iter() {
+                            let user_tx = kv.value().tx.clone();
+                            let message = generate_public_text_from(&letter.usr_sender, text);
+                            if String::from(kv.key()) == letter.usr_sender.to_lowercase() {
+                                continue;
+                            }
+                            user_tx.send(message);
+                        }
+                    }
+                    else {
+                        let message = generate_not_valid_msg().unwrap();
+                        server.users.remove(&letter.usr_sender.to_lowercase());
+                        letter.reply_to.send(message);
+                    }
+                }
+                TypeReciveMessages::Status { type_msg, status } => {
+                    if type_msg == "STATUS" {
+                        let Ok(state) = State::get_from_str(&status) else {
+                            let message = generate_not_valid_msg().unwrap();
+                            server.users.remove(&letter.usr_sender.to_lowercase());
+                            letter.reply_to.send(message);
+                            continue;
+                        };
+                        let opt_user = server.users.get_mut(&letter.usr_sender.to_lowercase());
+                        let user = opt_user.unwrap();
+                        user.state = state;
+                        let msg = generate_new_status_msg(&letter.usr_sender, state);
+                        for kv in server.users.iter() {
+                            if String::from(kv.key()) == letter.usr_sender.to_lowercase() {
+                                continue;
+                            }
+                            kv.tx.send(msg);
+                        }
+                    }
+                }
+                TypeReciveMessages::Users { type_msg } => {
+                    if type_msg == "USERS" {
+                        let map = generate_map_users(server.users.clone());
+                        let msg = generate_users_msg(map);
+                        letter.reply_to.send(msg);
+                    }
+                    else {
+                        let message = generate_not_valid_msg().unwrap();
+                        server.users.remove(&letter.usr_sender.to_lowercase());
+                        letter.reply_to.send(message);
+                    }
+                }
+                TypeReciveMessages::TextFrom { type_msg, username, text } => {
+                        if type_msg == "TEXT_FROM" {
+                            if server.users.contains_key(&username.to_lowercase()) {
+                                let msg = generate_text_from_msg(letter.usr_sender, text);
+                                let opt_user = server.users.get_mut(&username);
+                                let user = opt_user.unwrap(); 
+                                user.tx.send(msg);                   
+                            }
+                            else {
+                                let msg = generate_user_not_exist_response(username);
+                                letter.reply_to.send(msg);
+                            }
+                    }
+                    else {
+                        let message = generate_not_valid_msg().unwrap();
+                        server.users.remove(&letter.usr_sender.to_lowercase());
+                        letter.reply_to.send(message);
+                    }
+                }
+                TypeReciveMessages::Identify { type_msg, username } => {
+                    if type_msg == "NEW_USER" {
+                        let msg = generate_new_user_msg(username.clone());
+                        for kv in server.users.iter() {
+                            if kv.key() == &username.to_lowercase() {
+                                continue;
+                            }
+                            else {
+                                kv.value().tx.send(msg);
+                            }
+                        }
+                    }
+                    else {
+                        let message = generate_not_valid_msg().unwrap();
+                        server.users.remove(&letter.usr_sender.to_lowercase());
+                        letter.reply_to.send(message);
+                    }
+                }
+                _ => ()
+            }
+
+
+            }
+        }
     }
 
     async fn build_msg_sender_to_client<T: AsyncWrite + Unpin>(rx: Receptor<Vec<u8>>, mut writer: T) {
         
         for msg in rx {
             let Ok(_) = writer.write(&msg).await else {
-
                 return ;
             };
         }
@@ -181,7 +286,11 @@ impl Server {
 
     ///Función que genera el receptor de mensajes del cliente, si hay algún mensaje se lee
     /// y se envia al procesador global de mensajes, si se sobrepasa el limite del búffer
-    /// o hay algun error de lectura se cierra la conexión.
+    /// o hay algun error de lectura se cierra la conexión, en caso de mensaje inválido
+    /// o de mensaje de desconexión termina el proceso y envia la carta correspondiente
+    /// a el procesador de mensajes, como la identificación se produce previamente a
+    /// el inicio de este proceso, si un cliente reenvia el mensaje de identificación
+    /// se lo desconecta.
     async fn build_msg_client_processor<T: AsyncRead + Unpin>(user_tx: Senderr<Vec<u8>>, 
                                                              username: String,
                                                              mut reader: FramedRead<T, LinesCodec>,
@@ -189,16 +298,34 @@ impl Server {
         while let Some(result) = reader.next().await {
             match result {
                 Ok(msg) => {
-                    let letter = Letter::new(username.clone(), msg, user_tx.clone());
+                    let Ok(message): Result<TypeReciveMessages, serde_json::Error> = serde_json::from_str(&msg) else {
+                        let message = generate_not_valid_msg().expect("NO fue posible generar el mensaje");
+                        let diconect_msg = TypeReciveMessages::Disconect { type_msg: String::from("DISCONNECT") } ;
+                        let letter = Letter::new(username, diconect_msg, user_tx);
+                        global_tx.send(letter);
+                        user_tx.send(message);
+                        break;
+                    };
+                    if let TypeReciveMessages::Disconect { type_msg } = message  {
+                        let letter = Letter::new(username, message, user_tx);
+                        global_tx.send(letter);
+                        break;
+                    };
+                    if let TypeReciveMessages::Identify { type_msg, username } = message {
+                        let message = generate_not_valid_msg().expect("NO fue posible generar el mensaje");
+                        let diconect_msg = TypeReciveMessages::Disconect { type_msg: String::from("DISCONNECT") } ;
+                        let letter = Letter::new(username, diconect_msg, user_tx);
+                        global_tx.send(letter);
+                        user_tx.send(message);
+                        break;
+                    }
+                    let letter = Letter::new(username.clone(), message, user_tx.clone());
                     global_tx.send(letter);
+                    
                 }
                 Err(_) => {
-                    //Tiene que mandar la señal para desconectar el cliente.
-                    //Es decir cerrar su transmisor para que no se sigan
-                    //enviando mensajes.
-
-                    let message = generate_disconected_msg(&username).expect("Error generando mensaje");
-                    let letter = Letter::new(username, message, user_tx);
+                    let diconect_msg = TypeReciveMessages::Disconect { type_msg: String::from("DISCONNECT") }
+                    let letter = Letter::new(username, diconect_msg, user_tx);
                     global_tx.send(letter);
                     break;
                 }

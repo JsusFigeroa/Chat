@@ -1,7 +1,9 @@
+use futures::future::ok;
 use serde::{Deserialize, Serialize};
 use tokio::io::{BufReader, BufWriter};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use std::sync::mpsc::Sender;
+use serde_json;
 
 pub struct User {
     pub name: String,
@@ -19,10 +21,27 @@ impl User {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum State {
     Busy,
     Away,
     Active,
+}
+
+impl State {
+    pub(crate) fn get_from_str(state: &str) -> Result<State, ()> {
+        if state == "AWAY" {
+            Ok(State::Away)
+        }
+        else if state == "BUSY" {
+            Ok(State::Busy)
+        }
+        else if state == "ACTIVE" {
+            Ok(State::Active)
+        }
+        else {
+            Err(())
+        }
+    }
 }
