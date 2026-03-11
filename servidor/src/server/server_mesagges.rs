@@ -47,6 +47,13 @@ pub(super) fn generate_disconected_msg(username: &str) -> Result<String, serde_j
     Ok(message)
 }
 
+pub(super) fn generate_disconected(username: &str) -> Result<Vec<u8>, serde_json::Error> {
+    let msg = TypeSendMessages::IdentifyOrDisconect { type_msg: String::from("DISCONNECTED"), username: String::from(username) };
+    let mut message = serde_json::to_vec(&msg)?;
+    message.push(b'\n');
+    Ok(message)
+}
+
 pub(super) fn generate_public_text_from(username: &str, text: String) -> Vec<u8>{
     let message = TypeSendMessages::TextFrom { type_msg: String::from("PUBLIC_TEXT_FROM"),
                                                                                         username: String::from(username),

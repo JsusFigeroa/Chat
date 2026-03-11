@@ -93,22 +93,7 @@ impl Server {
                     return;
                 }
             }
-            if let TypeReciveMessages::Identify { type_msg, mut username } = mensagge {
-
-                if type_msg != "IDENTIFY" {
-                    let msg = generate_not_identified_msg().expect("Ocurrio un error al generar el mensaje");
-                    let Ok(_) = sok_writter.write_all(&msg).await else {
-                        return ;
-                    };
-                    let Ok(new_username) = aux_functions::retry_identify(&mut reader).await else {
-                        let msg = server_mesagges::generate_not_valid_msg().unwrap();
-                        let Ok(_) = sok_writter.write_all(&msg).await else {
-                            return ;
-                        };
-                        return;
-                    };
-                    username = new_username;
-                }
+            if let TypeReciveMessages::Identify { mut username } = mensagge {
 
                 let mut username_lowercase = username.to_lowercase();
 
@@ -150,7 +135,7 @@ impl Server {
                 });
                 println!("Nuevo usuario con nombre {} conectado", username);
                 let new_user = User::new(username, user_tx);
-                let msg_new_user = TypeReciveMessages::Identify { type_msg: String::from("NEW_USER"), username: new_user.name.clone() };
+                let msg_new_user = TypeReciveMessages::Identify { username: new_user.name.clone() };
                 let letter = Letter::new(new_user.name.clone(), msg_new_user, new_user.tx.clone());
                 server.users.insert(username_lowercase, new_user);
                 let Ok(_) = global_tx.send(letter).await else {
@@ -213,8 +198,9 @@ impl Server {
             match result {
                 Ok(msg) => {
                     let Ok(message): Result<TypeReciveMessages, serde_json::Error> = serde_json::from_str(&msg) else {
+                        
                         let message = generate_not_valid_msg().expect("NO fue posible generar el mensaje");
-                        let diconect_msg = TypeReciveMessages::Disconect { type_msg: String::from("DISCONNECT") } ;
+                        let diconect_msg = TypeReciveMessages::Disconect;
                         let letter = Letter::new(username, diconect_msg, user_tx.clone());
                         let Ok(_) = global_tx.send(letter).await else {
                             return ;
@@ -224,17 +210,17 @@ impl Server {
                         };
                         break;
                     };
-                    if let TypeReciveMessages::Disconect { type_msg: _ } = message  {
-                        let message = TypeReciveMessages::Disconect { type_msg: String::from("DISCONECT") };
+                    if let TypeReciveMessages::Disconect = message  {
+                        let message = TypeReciveMessages::Disconect;
                         let letter = Letter::new(username, message, user_tx);
                         let Ok(_) = global_tx.send(letter).await else {
                             return ;
                         };
                         break;
                     };
-                    if let TypeReciveMessages::Identify { type_msg: _, username } = message {
+                    if let TypeReciveMessages::Identify { username } = message {
                         let message = generate_not_valid_msg().expect("NO fue posible generar el mensaje");
-                        let diconect_msg = TypeReciveMessages::Disconect { type_msg: String::from("DISCONNECT") } ;
+                        let diconect_msg = TypeReciveMessages::Disconect;
                         let letter = Letter::new(username, diconect_msg, user_tx.clone());
                         let Ok(_) = global_tx.send(letter).await else {
                             return ;
@@ -251,7 +237,7 @@ impl Server {
                     
                 }
                 Err(_) => {
-                    let diconect_msg = TypeReciveMessages::Disconect { type_msg: String::from("DISCONNECT") };
+                    let diconect_msg = TypeReciveMessages::Disconect;
                     let letter = Letter::new(username, diconect_msg, user_tx);
                     let Ok(_) = global_tx.send(letter).await else {
                         return ;

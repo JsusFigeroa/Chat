@@ -1,59 +1,31 @@
 use serde::{Deserialize, Serialize};
 
+use crate::user::State;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
+#[serde(tag = "type")]
 pub enum TypeReciveMessages {
+    #[serde(rename = "IDENTIFY")]
     Identify {
-        #[serde(rename = "type")]
-        type_msg: String,
         username: String,
     },
+    #[serde(rename = "STATUS")]
     Status {
-        #[serde(rename = "type")]
-        type_msg: String,
-        status: String,
+        status: State
     },
-    Users {
-        #[serde(rename = "type")]
-        type_msg: String,
-    },
-    TextFrom {
-        #[serde(rename = "type")]
-        type_msg: String,
+    #[serde(rename = "USERS")]
+    Users,
+    #[serde(rename = "TEXT")]
+    Text {
         username: String,
         text: String,
     },
+    #[serde(rename = "PUBLIC_TEXT")]
     PublicText {
-        #[serde(rename = "type")]
-        type_msg: String,
         text: String,
     },
-    RoomMesagge {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-    },
-    Invitation {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-        usernames: String,
-    },
-    JoinRoom {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-    },
-    RoomText {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-        text: String,
-    },
-    Disconect {
-        #[serde(rename = "type")]
-        type_msg: String,
-    }
+    #[serde(rename = "DISCONNECT")]
+    Disconect,
 }
 
 /// Esta función toma un String y verifica si corresponde a uno de los mensajes que recibe el servidor.
