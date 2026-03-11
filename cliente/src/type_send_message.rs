@@ -1,57 +1,30 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
+use crate::view::Status;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
 pub enum TypeSendMessage {
+    #[serde(rename = "IDENTIFY")]
     Identify {
-        #[serde(rename = "type")]
-        type_msg: String,
         username: String,
     },
+    #[serde(rename = "STATUS")]
     Status {
-        #[serde(rename = "type")]
-        type_msg: String,
-        status: String,
+        status: Status,
     },
-    Users {
-        #[serde(rename = "type")]
-        type_msg: String,
-    },
-    TextFrom {
-        #[serde(rename = "type")]
-        type_msg: String,
+    #[serde(rename = "USERS")]
+    Users,
+    #[serde(rename = "TEXT")]
+    Text {
         username: String,
-        text: String,
+        text: String
     },
+    #[serde(rename = "PUBLIC_TEXT")]
     PublicText {
-        #[serde(rename = "type")]
-        type_msg: String,
-        text: String,
+        text: String
     },
-    RoomMesagge {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-    },
-    Invitation {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-        usernames: String,
-    },
-    JoinRoom {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-    },
-    RoomText {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-        text: String,
-    },
-    Disconect {
-        #[serde(rename = "type")]
-        type_msg: String,
-    }
+    #[serde(rename = "DISCONNECT")]
+    DISCONNECT
 }
+

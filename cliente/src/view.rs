@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::io;
 use std::io::stdin as stdio;
 use std::process::Command;
 use tokio::sync::mpsc::Sender;
+use serde::{self,Deserialize,Serialize};
 
 pub(super) fn clear_shell() {
     Command::new("clear").status().expect("No fue posible limpiar la terminal");
@@ -70,13 +72,108 @@ fn aux_get_addr(args: String) -> Result<SocketAddrV4, ()> {
 
 }
 
-pub(crate) fn print_public_msg(message: String, usr_sender: String) {
-    println!("{}: {}", usr_sender, message);
-}
-
-//Debe enviar la entrada por el transmisor
-pub(crate) async fn get_usr_entry<T>(tx: Sender<T>) {
+pub(crate) async fn get_usr_entry() -> Result<Action, ()>{
     let mut line = String::new();
     stdio().read_line(&mut line).expect("Error al leer de la entrada estándar");
     let line = String::from(line.trim());
+    if line.starts_with('/') {
+        let args: Vec<&str> = line.split_whitespace().collect();
+        match args[0] {
+            "/status" => {
+                if args.len() < 2 {
+                    return Err(())
+                }
+                match args[1] {
+                    "away" => {return Ok(Action::Status { status: Status::Away })}
+                    "busy" => {return Ok(Action::Status { status: Status::Busy })}
+                    "active" => {return Ok(Action::Status { status: Status::Active })}
+                    _ => {return Err(())}
+                }
+            }
+            "/users" => {
+                return Ok(Action::Users)
+            }
+            "/privateText" => {
+                if args.len() < 3 {
+                    return Err(());
+                }
+                return Ok(Action::PrivateText { username: String::from(args[1]), text: String::from(args[2]) })
+            }
+            "/disconnect" => {
+                return Ok(Action::Disconnect);
+            }
+            "/help" => {return Ok(Action::Help)}
+            _ => {
+                return Err(());
+            }
+        }
+    }
+    return Ok(Action::PublicText { text: line });
+}
+
+pub(crate) fn print_not_valid_command() {
+    unimplemented!()
+}
+
+pub(crate)  fn print_help_msg() {
+    unimplemented!()
+}
+
+pub(crate) fn disconnected_by_server() {
+    unimplemented!()
+}
+
+pub(crate) fn print_new_status(username: String, status: Status) {
+    match status {
+        Status::Active => {println!("El estado de {} ahora es Activo", username)}
+        Status::Away => {println!("El estado de {} ahora es Inactivo", username)}
+        Status::Busy => {println!("El estado de {} ahora es Ocupado", username)}
+    }
+}
+
+pub(crate) fn print_public_text(username: String, text: String) {
+    println!("{}: {}", username, text);
+}
+
+pub(crate) fn print_users(map: HashMap<String, Status>) {
+    println!("Los usuarios actuales son:");
+    for kv in map {
+        println!("{}: {:?}", kv.0, kv.1);
+    }
+}
+
+pub(crate) fn print_private_text(username: String, text: String){
+    println!("Mensaje privado de {}: {}", username, text);
+}
+
+pub(crate) fn print_invalid_response() {
+    println!("El mensaje enviado al servidor fue inválido");
+}
+
+pub(crate) fn print_text_response_no_such_usr(username: String) {
+    println!("El usuario {} al que se intentó enviar mensaje privado no existe.", username);
+}
+
+pub(crate) enum Action {
+    Status {
+        status: Status
+    },
+    Users,
+    PrivateText {
+        username: String,
+        text: String
+    },
+    Disconnect,
+    PublicText {
+        text: String
+    },
+    Help
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "UPPERCASE")]
+pub(crate) enum Status {
+    Away,
+    Busy,
+    Active
 }

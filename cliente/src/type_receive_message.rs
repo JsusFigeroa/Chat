@@ -1,72 +1,51 @@
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum TypeReciveMesagges {
+use serde::{Deserialize, Serialize};
+
+use crate::view::Status;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
+pub(crate)  enum TypeReciveMesagges {
+    #[serde(rename = "RESPONSE")]
     Response {
-        #[serde(rename = "type")]
-        type_msg: String,
-        operation: String,
+        operation: OperationType,
         result: String,
         extra: String,
     },
+    #[serde(rename = "NEW_STATUS")]
     NewStatus {
-        #[serde(rename = "type")]
-        type_msg: String,
         username: String,
-        status: String,
+        status: Status,
     },
-    GiveUsers {
-        #[serde(rename = "type")]
-        type_msg: String,
-        users: HashMap<String, String>,
+    #[serde(rename = "USER_LIST")]
+    UserList {
+        users: HashMap<String, Status>
     },
+    #[serde(rename = "TEXT_FROM")]
     TextFrom {
-        #[serde(rename = "type")]
-        type_msg: String,
         username: String,
         text: String,
     },
-    Invitation {
-        #[serde(rename = "type")]
-        type_msg: String,
-        usernamme: String,
-        roomname: String,
-    },
-    RoomOperations {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
+    #[serde(rename = "PUBLIC_TEXT_FROM")]
+    PublicTextFrom {
         username: String,
+        text: String,
     },
-    RoomUsers {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-        users: HashMap<String, String>,
-    },
-    IdentifyOrDisconect {
-        #[serde(rename = "type")]
-        type_msg: String,
+    #[serde(rename = "DISCONNECTED")]
+    Disconnected {
         username: String,
-    },
-    UsersList {
-        #[serde(rename = "type")]
-        type_msg: String,
-        users: HashMap<String, String>
-    },
-    RoomText {
-        #[serde(rename = "type")]
-        type_msg: String,
-        roomname: String,
-        username: String,
-        text: String
-    },
-    Invalid {
-        #[serde(rename = "type")]
-        type_msg: String,
-        operation: String,
-        result: String
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(tag = "type")]
+pub(crate) enum OperationType {
+    #[serde(rename = "IDENTIFY")]
+    Identify,
+    #[serde(rename = "TEXT")]
+    Text,
+    #[serde(rename = "INVALID")]
+    Invalid,
+}
+

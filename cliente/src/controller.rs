@@ -2,22 +2,13 @@ use tokio::sync::mpsc::{Sender, Receiver};
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::{TcpStream};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
-use crate::controller::controller_aux::generate_identify;
-use crate::type_receive_message::TypeReciveMesagges;
-use crate::view::{self, get_username, retry_get_username};
+use crate::controller::controller_aux::{generate_identify, procces_server_msg_aux};
+use crate::type_receive_message::{OperationType, TypeReciveMesagges};
+use crate::type_send_message::TypeSendMessage;
+use crate::view::{self, Action, get_username, retry_get_username};
 use tokio::sync::mpsc::channel;
 mod controller_aux;
 
-pub struct Controller<T> {
-    rx: Receiver<T>,
-    tx: Sender<T>
-}
-
-impl<T> Controller<T> {
-    fn new(rx: Receiver<T>, tx: Sender<T>) -> Controller<T> {
-        Controller { rx, tx }
-    }
-}
 
 /// Función que establece la conexión con un servidor y hace la identificación correspondiente, por último
 /// si todo lo anterior resulto exitoso, manda a llamar una función que ejecuta el resto de funcionalidades
@@ -42,6 +33,8 @@ pub async  fn start() {
         }
     }
 
+    work(buf_reader, sok_writer).await;
+
     //Hacer la función que enviará mensajes al servidor
     //Hacer transmisor para enviar mensajes al servidor
     //Hacer ciclo para obtener entrada del usuario
@@ -52,25 +45,34 @@ pub async  fn start() {
 /// Manda a llamar las funciones respectivas para recibir mensajes del servidor y entrada del usuario, a su vez 
 /// llama a las funciones que procesan estas solicitudes.
 // La función que recibe mensajes del server
-async fn work<T: AsyncRead + Unpin, R: AsyncWrite + Unpin>(mut reader:  T, mut writer: R, tx: Sender<Vec<u8>>) {
+async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Send + 'static>(reader:  BufReader<T>, writer: R) {
     let (msg_server_tx, mut msg_server_rx) = channel::<String>(100);
-    let (msg_user_tx, mut msg_user_rx) = channel::<String>(100);
-    let tx_for_disconect = tx.clone();
+    let (tx_for_msg_usr_proccesor, rx_for_msg_sender) = channel::<Vec<u8>>(100);
+    //let _tx_for_disconect = tx.clone();
     tokio::spawn(async move {
-        get_server_msg(msg_server_tx).await;
+        send_msg_to_server(writer, rx_for_msg_sender).await
     });
     tokio::spawn(async move {
-        view::get_usr_entry(msg_user_tx).await;
+        get_server_msg(msg_server_tx, reader).await;
     });
-
     loop {
+        let tx_for_msg_usr_proccesor_clone = tx_for_msg_usr_proccesor.clone();
         tokio::select! {
             Some(msg) = msg_server_rx.recv() => {
+                //Manejar el caso en el que el msg es de desconexión
+                //Manejar el cado en el que es response invalid
                 procces_server_msg(msg).await;
             }
 
-            Some(msg) = msg_user_rx.recv() => {
-                procces_user_msg(msg).await;
+            resultado = view::get_usr_entry() => {
+                match resultado {
+                    //Manejar aqui el caso de Disconnect
+                    Ok(action) => {
+                        //Manejar aqui el caso de Disconnect
+                        procces_user_msg(action, tx_for_msg_usr_proccesor_clone).await
+                    }
+                    Err(_) => {view::print_not_valid_command()}
+                }
             }
 
             _ = tokio::signal::ctrl_c() => {
@@ -82,16 +84,76 @@ async fn work<T: AsyncRead + Unpin, R: AsyncWrite + Unpin>(mut reader:  T, mut w
     }
 }
 
-async fn get_server_msg<T>(tx: Sender<T>) {
+async fn get_server_msg<R: AsyncRead + Unpin>(tx: Sender<String>, mut reader: BufReader<R>) {
+    loop {
+        let mut line = String::new();
+        let Ok(_) = reader.read_line(&mut line).await else {
+            //Hacer que envie señal de desconexión
+            return ;
+        };
+        tx.send(line).await.unwrap();
+    }
 
 }
 
 async fn procces_server_msg(message: String) {
-
+    let msg: TypeReciveMesagges = serde_json::from_str(&message).unwrap();
+    procces_server_msg_aux(msg);
 }
 
-async fn procces_user_msg(message: String) {
+async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
+    match action {
+        Action::Disconnect => {
+            let disconect = TypeSendMessage::DISCONNECT;
+            let msg = serde_json::to_vec(&disconect).unwrap();
+            let Ok(_) = tx.send(msg).await else {
+                return ;
+            };
+        }
+        Action::Help => {
 
+        }
+        Action::PrivateText { username, text } => {
+            let private_text = TypeSendMessage::Text { username, text };
+            let msg = serde_json::to_vec(&private_text).unwrap();
+            let Ok(_) = tx.send(msg).await else {
+                return ;
+            };
+        }
+        Action::Status { status } => {
+            let status = TypeSendMessage::Status { status };
+            let msg = serde_json::to_vec(&status).unwrap();
+            let Ok(_) = tx.send(msg).await else {
+                return ;
+            };
+        }
+        Action::Users => {
+            let users = TypeSendMessage::Users;
+            let msg = serde_json::to_vec(&users).unwrap();
+            let Ok(_) = tx.send(msg).await else {
+                return ;
+            };
+        }
+        Action::PublicText { text } => {
+            let text = TypeSendMessage::PublicText { text };
+            let msg = serde_json::to_vec(&text).unwrap();
+            let Ok(_) = tx.send(msg).await else {
+                return ;
+            };
+            let msg = serde_json::to_vec(&text).unwrap();
+            let Ok(_) = tx.send(msg).await else {
+                return ;
+            };
+        }
+    }
+}
+
+async fn send_msg_to_server<T: AsyncWrite + Unpin>(mut writer: T, mut rx: Receiver<Vec<u8>>){
+    while let Some(msg) = rx.recv().await {
+        let Ok(_) = writer.write_all(&msg).await else {
+            return ;
+        };
+    }
 }
 
 
@@ -107,13 +169,10 @@ async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) 
         panic!("La conexión se cerró")
     }
     
-    match serde_json::from_str::<TypeReciveMesagges>(&response).expect("El mensaje recibido no era válido") {
-        TypeReciveMesagges::Response { type_msg, operation, result, extra } => {
-            if type_msg != "RESPONSE" {
-                panic!("El mensaje no coincide con el protocolo")
-            }
-            if operation != "IDENTIFY" {
-                panic!("El mensaje no coincide con el protocolo")
+    match serde_json::from_str::<TypeReciveMesagges>(&response).expect("El mensaje recibido no era del tipo de mensajes que recibe el cliente") {
+        TypeReciveMesagges::Response { operation, result, extra } => {
+            if operation != OperationType::Identify {
+                panic!("La respuesta no es la correspondiente de acuerdo al protocolo")
             }
             if result != "SUCCES" {
                 if result == "USER_ALREADY_EXISTS" {
@@ -131,33 +190,4 @@ async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) 
         
     }
 
-}
-
-async fn recieve_msg<R: AsyncRead + Unpin>(tx: Sender<TypeReciveMesagges>, mut reader: BufReader<R>) {
-    let mut line = String::new();
-    let result = reader.read_line(&mut line).await;
-    loop {
-        let Ok(bytes) = result else {
-            // La vista tiene que imprimir que se desconectó el servidor.
-            break; 
-        };
-        if bytes == 0 {
-            // La vista tiene que imprimir que el servidor cerró su conexión.
-            break;
-        }
-        let Ok(message) = serde_json::from_str::<TypeReciveMesagges>(&line) else {
-            eprint!("El mensaje no coincide con el protocolo");
-            break;
-        };
-        tx.send(message);
-    }
-}
-///Función que recibe mensajes del servidor y se encarga de procesar cada uno.
-async fn process_msg_from_server<T>(server_rx: Receiver<TypeReciveMesagges>) {
-    
-}
-
-///Función que se encarga de procesar mensajes o peticiones provenientes del usuario.
-async fn process_msg_from_client<T>(client_rx: Receiver<T>, tx: Sender<Vec<u8>>) {
-    
 }
