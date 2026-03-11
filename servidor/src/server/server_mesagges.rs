@@ -64,7 +64,8 @@ pub(super) fn generate_new_status_msg(username: &str, status: State) -> Vec<u8>{
 }
 
 pub(super) fn generate_users_msg(map: HashMap<String, State>) -> Vec<u8>{
-    let mut msg = serde_json::to_vec(&map).expect("Error al parsear el mapa");
+    let message = TypeSendMessages::GiveUsers { type_msg: String::from("USER_LIST"), users: map };
+    let mut msg = serde_json::to_vec(&message).expect("Error al parsear el mapa");
     msg.push(b'\n');
     msg
 } 

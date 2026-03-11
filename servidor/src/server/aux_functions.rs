@@ -49,7 +49,7 @@ pub(super) fn generate_map_users(users: Arc<DashMap<String, User>>) -> HashMap<S
     map
 }
 
-pub(super) fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Server>) {
+pub(super) async fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Server>) {
     match letter.msg {
     TypeReciveMessages::PublicText { type_msg, text } => {
         if type_msg == "PUBLIC_TEXT" {
@@ -59,45 +59,50 @@ pub(super) fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Server>) {
                 if String::from(kv.key()) == letter.usr_sender.to_lowercase() {
                     continue;
                 }
-                user_tx.send(message);
+                user_tx.send(message).await.unwrap();
             }
         }
         else {
             let message = generate_not_valid_msg().unwrap();
             server.users.remove(&letter.usr_sender.to_lowercase());
-            letter.reply_to.send(message);
+            letter.reply_to.send(message).await.unwrap();
         }
     }
+    //Algo falla con este mensaje
     TypeReciveMessages::Status { type_msg, status } => {
         if type_msg == "STATUS" {
             let Ok(state) = State::get_from_str(&status) else {
                 let message = generate_not_valid_msg().unwrap();
                 server.users.remove(&letter.usr_sender.to_lowercase());
-                letter.reply_to.send(message);
+                letter.reply_to.send(message).await.unwrap();
                 return;
             };
-            let opt_user = server.users.get_mut(&letter.usr_sender.to_lowercase());
-            let mut user = opt_user.unwrap();
-            user.state = state;
+            if let Some(mut user) = server.users.get_mut(&letter.usr_sender.to_lowercase()) {
+                user.state = state;
+            }
+            let mut transmisors = Vec::new();
             let msg = generate_new_status_msg(&letter.usr_sender, state);
             for kv in server.users.iter() {
                 if String::from(kv.key()) == letter.usr_sender.to_lowercase() {
                     continue;
                 }
-                kv.tx.send(msg.clone());
+                transmisors.push(kv.tx.clone());
             }
-        }
+            for transmisor in transmisors {
+                transmisor.send(msg.clone()).await.unwrap();
+            }
+        }   
     }
     TypeReciveMessages::Users { type_msg } => {
         if type_msg == "USERS" {
             let map = generate_map_users(server.users.clone());
             let msg = generate_users_msg(map);
-            letter.reply_to.send(msg);
+            letter.reply_to.send(msg).await.unwrap();
         }
         else {
             let message = generate_not_valid_msg().unwrap();
             server.users.remove(&letter.usr_sender.to_lowercase());
-            letter.reply_to.send(message);
+            letter.reply_to.send(message).await.unwrap();
         }
     }
     TypeReciveMessages::TextFrom { type_msg, username, text } => {
@@ -106,17 +111,17 @@ pub(super) fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Server>) {
                     let msg = generate_text_from_msg(letter.usr_sender, text);
                     let opt_user = server.users.get_mut(&username);
                     let user = opt_user.unwrap(); 
-                    user.tx.send(msg);                   
+                    user.tx.send(msg).await.unwrap();                   
                 }
                 else {
                     let msg = generate_user_not_exist_response(username);
-                    letter.reply_to.send(msg);
+                    letter.reply_to.send(msg).await.unwrap();
                 }
         }
         else {
             let message = generate_not_valid_msg().unwrap();
             server.users.remove(&letter.usr_sender.to_lowercase());
-            letter.reply_to.send(message);
+            letter.reply_to.send(message).await.unwrap();
         }
     }
     TypeReciveMessages::Identify { type_msg, username } => {
@@ -127,14 +132,14 @@ pub(super) fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Server>) {
                     continue;
                 }
                 else {
-                    kv.value().tx.send(msg.clone());
+                    kv.value().tx.send(msg.clone()).await.unwrap();
                 }
             }
         }
         else {
             let message = generate_not_valid_msg().unwrap();
             server.users.remove(&letter.usr_sender.to_lowercase());
-            letter.reply_to.send(message);
+            letter.reply_to.send(message).await.unwrap();
         }
     }
     _ => ()

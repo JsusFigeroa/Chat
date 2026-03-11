@@ -37,14 +37,14 @@ impl Server {
         let port = view::get_port();
         let server = Server::new(port);
         let atm_server = Arc::new(server);
-        //println!("Aceptando conexiones");
+        println!("Aceptando conexiones");
         Server::get_conections(atm_server, false).await;
     }  
 
     async fn run_local(){
         let server = Server::new(8080);
         let clone_server = Arc::new(server);
-        //println!("Aceptando conexiones");
+        println!("Aceptando conexiones");
         Server::get_conections(clone_server, true).await;
     }
 
@@ -57,10 +57,12 @@ impl Server {
             addr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), server.port);
         }
         let listener = TcpListener::bind(addr).await.unwrap();
+        println!("puerto: {}", listener.local_addr().unwrap());
         let (tx, rx) = async_channel::bounded::<Letter<Vec<u8>>>(124);
         Server::build_msg_processors(rx.clone(),  server.clone());
         loop {
             let (socket, _) = listener.accept().await.unwrap();
+            println!("Conexión aceptada");
             let server_for_client = Arc::clone(&server);
             let tx_for_client = tx.clone();
             tokio::spawn(async move { Server::process_conection(socket, server_for_client, tx_for_client).await });
@@ -181,7 +183,7 @@ impl Server {
     /// de la lista de usuarios (y grupos).
     async fn process_letter(rx: Receiverr<Letter<Vec<u8>>>, server: Arc<Server>) {
         while let Ok(msg) = rx.recv().await  {
-            procces_letter_aux(msg, server.clone());
+            procces_letter_aux(msg, server.clone()).await;
         }
     }
 
