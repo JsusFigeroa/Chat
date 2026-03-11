@@ -2,7 +2,7 @@ use futures::future::ok;
 use serde::{Deserialize, Serialize};
 use tokio::io::{BufReader, BufWriter};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-use std::sync::mpsc::Sender;
+use tokio::sync::mpsc::Sender;
 use serde_json;
 
 pub struct User {
