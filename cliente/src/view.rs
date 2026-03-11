@@ -1,16 +1,18 @@
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::io;
+use std::io::stdin as stdio;
+use std::process::Command;
+use tokio::sync::mpsc::Sender;
 
+pub(super) fn clear_shell() {
+    Command::new("clear").status().expect("No fue posible limpiar la terminal");
+}
 
-
-pub fn get_addr() -> SocketAddrV4 {
-    println!("Ingrese la dirección y puerto en que se conectará");
-    println!("Ingresalo separado por espacios de la siguiente forma:");
-    println!("127 0 0 0 4444");
-    println!("La entrada anterior conecta al servidor en la dirección y puerto:");
-    println!("127.0.0.1:4444");
-    println!("En caso de entrada invalida se establecerá por defecto en:");
-    println!("127.0.0.1:4444");
+pub(crate)  fn get_addr() -> SocketAddrV4 {
+    println!("Ingrese la dirección y puerto en que se conectará con el siguiente formato:");
+    println!("127.0.0.1.4444");
+    println!("La entrada anterior conecta al servidor en la dirección 127.0.0.1 y el puerto 4444");
+    println!("En caso de entrada invalida se establecerá por defecto en localhost y puerto 4444");
     let mut args = String::new();
     io::stdin().read_line(&mut args).expect("No fue posible obtener la dirección");
     let addr = aux_get_addr(args).unwrap_or_else(|_| {
@@ -22,7 +24,7 @@ pub fn get_addr() -> SocketAddrV4 {
     addr
 }
 
-pub fn get_username() -> Result<String, ()> {
+pub(crate)  fn get_username() -> Result<String, ()> {
     println!("Escribe tu nombre de usuario, recuerda que debe ser de máximo 8 caracteres");
     let mut username = String::new();
     io::stdin().read_line(&mut username).expect("Error el obtener nombre de usuario");
@@ -43,17 +45,17 @@ pub fn get_username() -> Result<String, ()> {
     }
 }
 
-pub fn retry_get_username() -> String {
+pub(crate)  fn retry_get_username() -> String {
     println!("El nombre selecionado ya está en uso");
     get_username().expect("El nombre de usuario no es válido")
 }
 
-pub fn print_succes_identify(username: String) {
+pub(crate)  fn print_succes_identify(username: String) {
     println!("Entraste al chat con el nombre {}", username);
 }
 
 fn aux_get_addr(args: String) -> Result<SocketAddrV4, ()> {
-    let arg: Vec<&str> = args.split_whitespace().collect();
+    let arg: Vec<&str> = args.split('.').collect();
     if arg.len() != 5 {
         return Err(())
     }
@@ -66,4 +68,15 @@ fn aux_get_addr(args: String) -> Result<SocketAddrV4, ()> {
     let addr = SocketAddrV4::new(ip, port);
     Ok(addr)
 
+}
+
+pub(crate) fn print_public_msg(message: String, usr_sender: String) {
+    println!("{}: {}", usr_sender, message);
+}
+
+//Debe enviar la entrada por el transmisor
+pub(crate) async fn get_usr_entry<T>(tx: Sender<T>) {
+    let mut line = String::new();
+    stdio().read_line(&mut line).expect("Error al leer de la entrada estándar");
+    let line = String::from(line.trim());
 }
