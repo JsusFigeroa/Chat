@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
-use std::io;
-use std::io::stdin as stdio;
+use std::io::{self};
+use tokio::io::{BufReader, AsyncBufReadExt, stdin};
 use std::process::Command;
 use tokio::sync::mpsc::Sender;
 use serde::{self,Deserialize,Serialize};
@@ -17,7 +17,7 @@ pub(crate)  fn get_addr() -> SocketAddrV4 {
     println!("En caso de entrada invalida se establecerá por defecto en localhost y puerto 4444");
     let mut args = String::new();
     io::stdin().read_line(&mut args).expect("No fue posible obtener la dirección");
-    let addr = aux_get_addr(args).unwrap_or_else(|_| {
+    let addr = aux_get_addr(args.trim()).unwrap_or_else(|_| {
         let ip = Ipv4Addr::new(127, 0, 0, 1);
         let port = 4444;
         let addr = SocketAddrV4::new(ip, port);
@@ -39,11 +39,11 @@ pub(crate)  fn get_username() -> Result<String, ()> {
             Err(())
         }
         else {
-            Ok(username)
+            Ok(String::from(username.trim()))
         }
     }
     else {
-        Ok(username)
+        Ok(String::from(username.trim()))
     }
 }
 
@@ -56,7 +56,7 @@ pub(crate)  fn print_succes_identify(username: String) {
     println!("Entraste al chat con el nombre {}", username);
 }
 
-fn aux_get_addr(args: String) -> Result<SocketAddrV4, ()> {
+fn aux_get_addr(args: &str) -> Result<SocketAddrV4, ()> {
     let arg: Vec<&str> = args.split('.').collect();
     if arg.len() != 5 {
         return Err(())
@@ -72,47 +72,68 @@ fn aux_get_addr(args: String) -> Result<SocketAddrV4, ()> {
 
 }
 
-pub(crate) async fn get_usr_entry() -> Result<Action, ()>{
+pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
+
+    let stdin = stdin();
+    let mut reader = BufReader::new(stdin);
     let mut line = String::new();
-    stdio().read_line(&mut line).expect("Error al leer de la entrada estándar");
-    let line = String::from(line.trim());
+
+    reader.read_line(&mut line).await.expect("Error al leer de la entrada estándar");
+    
+    let line = line.trim();
+    if line.is_empty() { return; }
+
     if line.starts_with('/') {
-        let args: Vec<&str> = line.split_whitespace().collect();
+        // Usamos splitn para dividir máximo en 3 partes, así el mensaje privado 
+        // no se corta por los espacios intermedios.
+        let args: Vec<&str> = line.splitn(3, char::is_whitespace).collect();
+        
         match args[0] {
             "/status" => {
                 if args.len() < 2 {
-                    return Err(())
+                    let _ = tx.send(Err(())).await;
+                    return;
                 }
                 match args[1] {
-                    "away" => {return Ok(Action::Status { status: Status::Away })}
-                    "busy" => {return Ok(Action::Status { status: Status::Busy })}
-                    "active" => {return Ok(Action::Status { status: Status::Active })}
-                    _ => {return Err(())}
+                    "away" => { let _ = tx.send(Ok(Action::Status { status: Status::Away })).await; }
+                    "busy" => { let _ = tx.send(Ok(Action::Status { status: Status::Busy })).await; }
+                    "active" => { let _ = tx.send(Ok(Action::Status { status: Status::Active })).await; }
+                    _ => { let _ = tx.send(Err(())).await; }
                 }
+                return;
             }
             "/users" => {
-                return Ok(Action::Users)
+                let _ = tx.send(Ok(Action::Users)).await;
+                return;
             }
             "/privateText" => {
                 if args.len() < 3 {
-                    return Err(());
+                    let _ = tx.send(Err(())).await;
+                    return;
                 }
-                return Ok(Action::PrivateText { username: String::from(args[1]), text: String::from(args[2]) })
+                let _ = tx.send(Ok(Action::PrivateText { username: String::from(args[1]), text: String::from(args[2])})).await;
+                return;
             }
             "/disconnect" => {
-                return Ok(Action::Disconnect);
+                let _ = tx.send(Ok(Action::Disconnect)).await;
+                return;
             }
-            "/help" => {return Ok(Action::Help)}
+            "/help" => {
+                let _ = tx.send(Ok(Action::Help)).await;
+                return;
+            }
             _ => {
-                return Err(());
+                let _ = tx.send(Err(())).await;
+                return;
             }
         }
     }
-    return Ok(Action::PublicText { text: line });
+
+    let _ = tx.send(Ok(Action::PublicText { text: String::from(line) })).await;
 }
 
 pub(crate) fn print_not_valid_command() {
-    unimplemented!()
+    println!("El comando utilizado no es válido, intente /help para obtener ayuda");
 }
 
 pub(crate)  fn print_help_msg() {
@@ -152,6 +173,10 @@ pub(crate) fn print_invalid_response() {
 
 pub(crate) fn print_text_response_no_such_usr(username: String) {
     println!("El usuario {} al que se intentó enviar mensaje privado no existe.", username);
+} 
+
+pub(crate) fn print_new_user_connected(username: String){
+    println!("{} se ha conectado al chat", username)
 }
 
 pub(crate) enum Action {

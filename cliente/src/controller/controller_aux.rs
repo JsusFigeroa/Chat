@@ -36,5 +36,8 @@ pub(super) fn procces_server_msg_aux(message: TypeReciveMesagges) {
         TypeReciveMesagges::TextFrom { username, text } => {
             view::print_private_text(username, text);
         }
+        TypeReciveMesagges::NewUser { username } => {
+            view::print_new_user_connected(username);
+        }
     }
 }

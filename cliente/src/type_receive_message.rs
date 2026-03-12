@@ -13,6 +13,10 @@ pub(crate)  enum TypeReciveMesagges {
         result: String,
         extra: String,
     },
+    #[serde(rename = "NEW_USER")]
+    NewUser {
+        username: String
+    },
     #[serde(rename = "NEW_STATUS")]
     NewStatus {
         username: String,
@@ -39,7 +43,6 @@ pub(crate)  enum TypeReciveMesagges {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(tag = "type")]
 pub(crate) enum OperationType {
     #[serde(rename = "IDENTIFY")]
     Identify,

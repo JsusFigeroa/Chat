@@ -48,6 +48,7 @@ pub async  fn start() {
 async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Send + 'static>(reader:  BufReader<T>, writer: R) {
     let (msg_server_tx, mut msg_server_rx) = channel::<String>(100);
     let (tx_for_msg_usr_proccesor, rx_for_msg_sender) = channel::<Vec<u8>>(100);
+    let (tx_for_user_entry, mut rx_for_user_entry) = channel::<Result<Action, ()>>(100);
     //let _tx_for_disconect = tx.clone();
     tokio::spawn(async move {
         send_msg_to_server(writer, rx_for_msg_sender).await
@@ -55,6 +56,14 @@ async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Sen
     tokio::spawn(async move {
         get_server_msg(msg_server_tx, reader).await;
     });
+    tokio::spawn(async move {
+        loop {
+            let tx_for_user_entry_clone = tx_for_user_entry.clone();
+            view::get_usr_entry(tx_for_user_entry_clone).await;
+            println!("Se obtuvo la entrada")
+        }
+    });
+
     loop {
         let tx_for_msg_usr_proccesor_clone = tx_for_msg_usr_proccesor.clone();
         tokio::select! {
@@ -64,12 +73,14 @@ async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Sen
                 procces_server_msg(msg).await;
             }
 
-            resultado = view::get_usr_entry() => {
+            Some(resultado) = rx_for_user_entry.recv() => {
+                println!("Llego al select");
                 match resultado {
                     //Manejar aqui el caso de Disconnect
                     Ok(action) => {
                         //Manejar aqui el caso de Disconnect
-                        procces_user_msg(action, tx_for_msg_usr_proccesor_clone).await
+                        procces_user_msg(action, tx_for_msg_usr_proccesor_clone).await;
+                        println!("Termino el proceso");
                     }
                     Err(_) => {view::print_not_valid_command()}
                 }
@@ -91,7 +102,7 @@ async fn get_server_msg<R: AsyncRead + Unpin>(tx: Sender<String>, mut reader: Bu
             //Hacer que envie señal de desconexión
             return ;
         };
-        tx.send(line).await.unwrap();
+        tx.send(String::from(line.trim())).await.unwrap();
     }
 
 }
@@ -105,7 +116,8 @@ async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
     match action {
         Action::Disconnect => {
             let disconect = TypeSendMessage::DISCONNECT;
-            let msg = serde_json::to_vec(&disconect).unwrap();
+            let mut msg = serde_json::to_vec(&disconect).unwrap();
+            msg.push(b'\n');
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
@@ -115,32 +127,32 @@ async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
         }
         Action::PrivateText { username, text } => {
             let private_text = TypeSendMessage::Text { username, text };
-            let msg = serde_json::to_vec(&private_text).unwrap();
+            let mut msg = serde_json::to_vec(&private_text).unwrap();
+            msg.push(b'\n');
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
         }
         Action::Status { status } => {
             let status = TypeSendMessage::Status { status };
-            let msg = serde_json::to_vec(&status).unwrap();
+            let mut msg = serde_json::to_vec(&status).unwrap();
+            msg.push(b'\n');
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
         }
         Action::Users => {
             let users = TypeSendMessage::Users;
-            let msg = serde_json::to_vec(&users).unwrap();
+            let mut msg = serde_json::to_vec(&users).unwrap();
+            msg.push(b'\n');
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
         }
         Action::PublicText { text } => {
             let text = TypeSendMessage::PublicText { text };
-            let msg = serde_json::to_vec(&text).unwrap();
-            let Ok(_) = tx.send(msg).await else {
-                return ;
-            };
-            let msg = serde_json::to_vec(&text).unwrap();
+            let mut msg = serde_json::to_vec(&text).unwrap();
+            msg.push(b'\n');
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
@@ -168,13 +180,13 @@ async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) 
     if bytes == 0 {
         panic!("La conexión se cerró")
     }
-    
-    match serde_json::from_str::<TypeReciveMesagges>(&response).expect("El mensaje recibido no era del tipo de mensajes que recibe el cliente") {
+    println!("{}" , response);
+    match serde_json::from_str::<TypeReciveMesagges>(response.trim()).expect("El mensaje recibido no era del tipo de mensajes que recibe el cliente") {
         TypeReciveMesagges::Response { operation, result, extra } => {
             if operation != OperationType::Identify {
                 panic!("La respuesta no es la correspondiente de acuerdo al protocolo")
             }
-            if result != "SUCCES" {
+            if result != "SUCCESS" {
                 if result == "USER_ALREADY_EXISTS" {
                     Err(())
                 }
