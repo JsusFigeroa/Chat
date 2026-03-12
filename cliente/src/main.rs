@@ -1,3 +1,5 @@
-fn main() {
-    println!("Hello, world!");
+use cliente::controller;
+#[tokio::main]
+async fn main() {
+    controller::start().await;
 }
