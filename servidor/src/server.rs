@@ -1,15 +1,14 @@
-use crate::server::aux_functions::{generate_map_users, procces_letter_aux};
+use crate::server::aux_functions::{procces_letter_aux};
 use crate::server::server_mesagges::{generate_disconected_msg, generate_new_status_msg, generate_new_user_msg, generate_not_identified_msg, generate_not_valid_msg, generate_public_text_from, generate_succes_identify_response, generate_text_from_msg, generate_user_already_exists_response, generate_user_not_exist_response, generate_users_msg};
 use crate::type_recive_messages::TypeReciveMessages;
-use crate::type_send_messages::TypeSendMessages;
-use crate::user::{self, State, User};
+use crate::user::{State, User};
 use crate::view;
 use crate::letter::Letter;
 use dashmap::DashMap;
-use serde_json::{self, ser};
+use serde_json::{self};
 use tokio::sync::mpsc::{Receiver, Sender, self};
 use std::net::{Ipv4Addr, SocketAddrV4};
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use std::sync::{Arc};
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -41,13 +40,6 @@ impl Server {
         Server::get_conections(atm_server, false).await;
     }  
 
-    async fn run_local(){
-        let server = Server::new(8080);
-        let clone_server = Arc::new(server);
-        println!("Aceptando conexiones");
-        Server::get_conections(clone_server, true).await;
-    }
-
     async fn get_conections(server: Arc<Server>, local: bool) {
         let addr: SocketAddrV4;
         if local {
@@ -78,70 +70,75 @@ impl Server {
         };
         let lectura = msg.trim();
         let mensagge: TypeReciveMessages;
-            match serde_json::from_str(&lectura) {
-                Ok(text) => {
-                    mensagge = text;
-                }
-                Err(_) => {
-                    let msg = generate_not_valid_msg().expect("Error al generar el mensaje de json inválido");
+        match serde_json::from_str(&lectura) {
+            Ok(text) => {
+                mensagge = text;
+            }
+            Err(_) => {
+                let msg = generate_not_valid_msg().expect("Error al generar el mensaje de json inválido");
+                let Ok(_) = sok_writter.write_all(&msg).await else {
+                    return ;
+                };
+                let Ok(_) = sok_writter.shutdown().await else {
+                    return ;
+                };
+                return;
+            }
+        }
+        if let TypeReciveMessages::Identify { mut username } = mensagge {
+
+            let mut username_lowercase = username.to_lowercase();
+
+            if server.users.contains_key(&username_lowercase) {
+                let msg = generate_user_already_exists_response(&username).expect("No fue posible generar el mensaje");
+                let Ok(_) = sok_writter.write_all(&msg).await else {
+                    return ;
+                };
+                let Ok(new_username) = aux_functions::retry_identify(&mut reader).await else {
+                    let msg = server_mesagges::generate_not_valid_msg().expect("Error el generar mensaje");
                     let Ok(_) = sok_writter.write_all(&msg).await else {
                         return ;
                     };
-                    let Ok(_) = sok_writter.shutdown().await else {
+                    return;
+                };
+                let new_username_lower = new_username.to_lowercase();
+                if server.users.contains_key(&new_username_lower) {
+                    let msg = server_mesagges::generate_not_valid_msg().expect("Error el generar mensaje");
+                    let Ok(_) = sok_writter.write_all(&msg).await else {
                         return ;
                     };
                     return;
                 }
+                username = new_username;
             }
-            if let TypeReciveMessages::Identify { mut username } = mensagge {
-
-                let mut username_lowercase = username.to_lowercase();
-
-                if server.users.contains_key(&username_lowercase) {
-                    let msg = generate_user_already_exists_response(&username).expect("No fue posible generar el mensaje");
-                    let Ok(_) = sok_writter.write_all(&msg).await else {
-                        return ;
-                    };
-                    let Ok(new_username) = aux_functions::retry_identify(&mut reader).await else {
-                        let msg = server_mesagges::generate_not_valid_msg().expect("Error el generar mensaje");
-                        let Ok(_) = sok_writter.write_all(&msg).await else {
-                            return ;
-                        };
-                        return;
-                    };
-                    let new_username_lower = new_username.to_lowercase();
-                    if server.users.contains_key(&new_username_lower) {
-                        let msg = server_mesagges::generate_not_valid_msg().expect("Error el generar mensaje");
-                        let Ok(_) = sok_writter.write_all(&msg).await else {
-                            return ;
-                        };
-                        return;
-                    }
-                    username = new_username;
-                }
-                username_lowercase = username.to_lowercase();
-                let user_tx_clone = user_tx.clone();
-                let username_clone = username.clone();
-                let global_tx_clone = global_tx.clone();
-                tokio::spawn(async move {
-                    Server::build_msg_client_processor(user_tx_clone, username_clone, reader, global_tx_clone).await;
-                });
-                let msg = generate_succes_identify_response(&username).expect("No fue posible generar el mensaje");
-                let Ok(_) = sok_writter.write_all(&msg).await else {
-                    return ;
-                };
-                tokio::spawn(async move {
-                    Server::build_msg_sender_to_client(user_rx, sok_writter).await;
-                });
-                println!("Nuevo usuario con nombre {} conectado", username);
-                let new_user = User::new(username, user_tx);
-                let msg_new_user = TypeReciveMessages::Identify { username: new_user.name.clone() };
-                let letter = Letter::new(new_user.name.clone(), msg_new_user, new_user.tx.clone());
-                server.users.insert(username_lowercase, new_user);
-                let Ok(_) = global_tx.send(letter).await else {
-                    return ;
-                };    
-            }
+            username_lowercase = username.to_lowercase();
+            let user_tx_clone = user_tx.clone();
+            let username_clone = username.clone();
+            let global_tx_clone = global_tx.clone();
+            tokio::spawn(async move {
+                Server::build_msg_client_processor(user_tx_clone, username_clone, reader, global_tx_clone).await;
+            });
+            let msg = generate_succes_identify_response(&username).expect("No fue posible generar el mensaje");
+            let Ok(_) = sok_writter.write_all(&msg).await else {
+                return ;
+            };
+            tokio::spawn(async move {
+                Server::build_msg_sender_to_client(user_rx, sok_writter).await;
+            });
+            println!("Nuevo usuario con nombre {} conectado", username);
+            let new_user = User::new(username, user_tx);
+            let msg_new_user = TypeReciveMessages::Identify { username: new_user.name.clone() };
+            let letter = Letter::new(new_user.name.clone(), msg_new_user, new_user.tx.clone());
+            server.users.insert(username_lowercase, new_user);
+            let Ok(_) = global_tx.send(letter).await else {
+                return ;
+            };    
+        }
+        else {
+            let msg = generate_not_identified_msg().unwrap();
+            let _ = sok_writter.write_all(&msg).await;
+            return ;
+        }
     }
 
     fn build_msg_processors(rx: Receiverr<Letter<Vec<u8>>>,server: Arc<Server>){
@@ -194,59 +191,44 @@ impl Server {
                                                              username: String,
                                                              mut reader: FramedRead<T, LinesCodec>,
                                                             global_tx: Senderr<Letter<Vec<u8>>>) {
+
         while let Some(result) = reader.next().await {
             match result {
                 Ok(msg) => {
                     let Ok(message): Result<TypeReciveMessages, serde_json::Error> = serde_json::from_str(&msg) else {
                         
                         let message = generate_not_valid_msg().expect("NO fue posible generar el mensaje");
-                        let diconect_msg = TypeReciveMessages::Disconect;
-                        let letter = Letter::new(username, diconect_msg, user_tx.clone());
-                        let Ok(_) = global_tx.send(letter).await else {
-                            return ;
-                        };
-                        let Ok(_) = user_tx.send(message).await else {
-                            return ;
+                        let Ok(_) = user_tx.clone().send(message).await else {
+                            break; 
                         };
                         break;
                     };
                     if let TypeReciveMessages::Disconect = message  {
-                        let message = TypeReciveMessages::Disconect;
-                        let letter = Letter::new(username, message, user_tx);
-                        let Ok(_) = global_tx.send(letter).await else {
-                            return ;
-                        };
                         break;
                     };
-                    if let TypeReciveMessages::Identify { username } = message {
+                    if let TypeReciveMessages::Identify { username: _ } = message {
                         let message = generate_not_valid_msg().expect("NO fue posible generar el mensaje");
-                        let diconect_msg = TypeReciveMessages::Disconect;
-                        let letter = Letter::new(username, diconect_msg, user_tx.clone());
-                        let Ok(_) = global_tx.send(letter).await else {
-                            return ;
+                        let Ok(_) = user_tx.clone().send(message).await else {
+                            break; 
                         };
-                        let Ok(_) = user_tx.send(message).await else {
-                            return ;
-                        };
-                        break;
+                        break; 
                     }
                     let letter = Letter::new(username.clone(), message, user_tx.clone());
                     let Ok(_) = global_tx.send(letter).await else {
-                        return ;
+                        break;
                     };
-                    
+                    continue;
                 }
                 Err(_) => {
-                    let diconect_msg = TypeReciveMessages::Disconect;
-                    let letter = Letter::new(username, diconect_msg, user_tx);
-                    let Ok(_) = global_tx.send(letter).await else {
-                        return ;
-                    };
                     break;
                 }
             }
         }
-
+        let disconect = TypeReciveMessages::Disconect;
+        let msg = generate_disconected_msg(&username).unwrap();
+        let letter = Letter::new(username, disconect, user_tx.clone());
+        let _ = global_tx.send(letter).await;
+        let _ = user_tx.send(msg).await;
     }
 
 }

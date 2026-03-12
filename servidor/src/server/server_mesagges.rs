@@ -41,13 +41,7 @@ pub(super) fn generate_user_already_exists_response(name: &str) -> Result<Vec<u8
     msg_to_bytes.push(b'\n');
     Ok(msg_to_bytes)
 } 
-pub(super) fn generate_disconected_msg(username: &str) -> Result<String, serde_json::Error> {
-    let msg = TypeSendMessages::IdentifyOrDisconect { type_msg: String::from("DISCONNECTED"), username: String::from(username) };
-    let mut message = serde_json::to_string(&msg)?;
-    Ok(message)
-}
-
-pub(super) fn generate_disconected(username: &str) -> Result<Vec<u8>, serde_json::Error> {
+pub(super) fn generate_disconected_msg(username: &str) -> Result<Vec<u8>, serde_json::Error> {
     let msg = TypeSendMessages::IdentifyOrDisconect { type_msg: String::from("DISCONNECTED"), username: String::from(username) };
     let mut message = serde_json::to_vec(&msg)?;
     message.push(b'\n');

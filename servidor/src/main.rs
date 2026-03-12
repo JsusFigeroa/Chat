@@ -1,4 +1,4 @@
-use servidor::server::{self, Server};
+use servidor::server::{Server};
 
 #[tokio::main]
 async fn main() {

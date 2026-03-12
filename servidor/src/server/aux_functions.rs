@@ -1,11 +1,8 @@
-use crate::server::server_mesagges::{generate_disconected, generate_not_identified_msg, generate_not_valid_msg, generate_succes_identify_response, generate_user_already_exists_response};
+use crate::server::server_mesagges::{generate_disconected_msg};
 use crate::type_recive_messages::TypeReciveMessages;
-use crate::type_send_messages::TypeSendMessages;
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver as Receptor, Sender as Senderr, self};
 use crate::user::User;
 use tokio::io::AsyncRead;
-use::tokio::io::{BufReader, AsyncBufReadExt, AsyncWriteExt};
 use super::*;
 
 //Función que regresa un Result<>, Ok si se logro autenticar o Err en otro caso.
@@ -50,7 +47,7 @@ pub(super) async fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Serv
     TypeReciveMessages::PublicText { text } => {
         let mut transmisors = Vec::new();
         for kv in server.users.iter() {
-            if kv.name == letter.usr_sender.to_lowercase() {
+            if kv.name.to_lowercase() == letter.usr_sender.to_lowercase() {
                 continue;
             }
             transmisors.push(kv.tx.clone());
@@ -112,7 +109,7 @@ pub(super) async fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Serv
         }
     }
     TypeReciveMessages::Disconect => {
-        let msg = generate_disconected(&letter.usr_sender).unwrap();
+        let msg = generate_disconected_msg(&letter.usr_sender).unwrap();
         let mut transmisors = Vec::new();
         for kv in server.users.iter() {
             if kv.key() == &letter.usr_sender.to_lowercase() {
