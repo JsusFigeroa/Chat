@@ -60,7 +60,6 @@ async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Sen
         loop {
             let tx_for_user_entry_clone = tx_for_user_entry.clone();
             view::get_usr_entry(tx_for_user_entry_clone).await;
-            println!("Se obtuvo la entrada")
         }
     });
 
@@ -74,13 +73,11 @@ async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Sen
             }
 
             Some(resultado) = rx_for_user_entry.recv() => {
-                println!("Llego al select");
                 match resultado {
                     //Manejar aqui el caso de Disconnect
                     Ok(action) => {
                         //Manejar aqui el caso de Disconnect
                         procces_user_msg(action, tx_for_msg_usr_proccesor_clone).await;
-                        println!("Termino el proceso");
                     }
                     Err(_) => {view::print_not_valid_command()}
                 }
