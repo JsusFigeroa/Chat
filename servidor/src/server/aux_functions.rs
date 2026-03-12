@@ -41,8 +41,6 @@ pub(super) fn generate_map_users(users: Arc<DashMap<String, User>>) -> HashMap<S
 }
 
 pub(super) async fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Server>) {
-    println!("llego al procesador");
-    println!("Mensaje interpretado por Rust: {:#?}", letter.msg);
     match letter.msg {
     TypeReciveMessages::PublicText { text } => {
         let mut transmisors = Vec::new();
