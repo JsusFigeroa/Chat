@@ -13,7 +13,7 @@ pub(super) fn generate_identify(name: String) -> Vec<u8> {
 pub(super) fn procces_server_msg_aux(message: TypeReciveMesagges) {
     match message {
         TypeReciveMesagges::Disconnected { username } => {
-            view::disconnected_by_server();
+            view::user_disconnected(username);
         }
         TypeReciveMesagges::NewStatus { username, status } => {
             view::print_new_status(username, status);
@@ -21,13 +21,13 @@ pub(super) fn procces_server_msg_aux(message: TypeReciveMesagges) {
         TypeReciveMesagges::PublicTextFrom { username, text } => {
             view::print_public_text(username, text);
         }
-        TypeReciveMesagges::Response { operation: OperationType::Identify, result, extra } => {
+        TypeReciveMesagges::Response { operation: OperationType::Identify, result: _, extra: _ } => {
 
         }
-        TypeReciveMesagges::Response { operation: OperationType::Invalid, result, extra } => {
+        TypeReciveMesagges::Response { operation: OperationType::Invalid, result: _, extra: _ } => {
             view::print_invalid_response();
         }
-        TypeReciveMesagges::Response { operation: OperationType::Text, result, extra } => {
+        TypeReciveMesagges::Response { operation: OperationType::Text, result: _, extra } => {
             view::print_text_response_no_such_usr(extra);
         }
         TypeReciveMesagges::UserList { users } => {

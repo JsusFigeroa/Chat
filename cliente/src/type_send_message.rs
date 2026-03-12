@@ -4,7 +4,7 @@ use crate::view::Status;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
-pub enum TypeSendMessage {
+pub(crate)  enum TypeSendMessage {
     #[serde(rename = "IDENTIFY")]
     Identify {
         username: String,

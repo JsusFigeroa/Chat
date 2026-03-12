@@ -140,8 +140,8 @@ pub(crate)  fn print_help_msg() {
     unimplemented!()
 }
 
-pub(crate) fn disconnected_by_server() {
-    unimplemented!()
+pub(crate) fn user_disconnected(username: String) {
+    println!("El usuario {} se ha desconectado", username);
 }
 
 pub(crate) fn print_new_status(username: String, status: Status) {
