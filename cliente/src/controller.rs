@@ -108,7 +108,9 @@ async fn get_server_msg<R: AsyncRead + Unpin>(tx: Sender<String>, mut reader: Bu
 }
 
 async fn procces_server_msg(message: String) {
-    let msg: TypeReciveMesagges = serde_json::from_str(&message).unwrap();
+    let Ok(msg) = serde_json::from_str(&message) else {
+        return ;
+    };
     procces_server_msg_aux(msg);
 }
 
