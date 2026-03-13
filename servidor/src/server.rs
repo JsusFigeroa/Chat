@@ -1,3 +1,4 @@
+use crate::room::Room;
 use crate::server::aux_functions::{procces_letter_aux};
 use crate::server::server_mesagges::{generate_disconected_msg, generate_new_status_msg, generate_new_user_msg, generate_not_identified_msg, generate_not_valid_msg, generate_public_text_from, generate_succes_identify_response, generate_text_from_msg, generate_user_already_exists_response, generate_user_not_exist_response, generate_users_msg};
 use crate::type_recive_messages::TypeReciveMessages;
@@ -21,14 +22,17 @@ pub mod aux_functions;
 pub struct Server {
     users: Arc<DashMap<String, User>>,
     port: u16,
+    rooms: Arc<DashMap<String, Room>>,
 }
 
 impl Server {
     pub fn new(port: u16) -> Server {
         let users = Arc::new(DashMap::new());
+        let rooms = Arc::new(DashMap::new());
         Server {
             users,
             port,
+            rooms,
         }
     }
 
@@ -225,10 +229,10 @@ impl Server {
             }
         }
         let disconect = TypeReciveMessages::Disconect;
-        let msg = generate_disconected_msg(&username).unwrap();
         let letter = Letter::new(username, disconect, user_tx.clone());
+        drop(reader);
+        drop(user_tx);
         let _ = global_tx.send(letter).await;
-        let _ = user_tx.send(msg).await;
     }
 
 }

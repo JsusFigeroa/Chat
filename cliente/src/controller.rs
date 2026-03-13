@@ -66,10 +66,16 @@ async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Sen
     loop {
         let tx_for_msg_usr_proccesor_clone = tx_for_msg_usr_proccesor.clone();
         tokio::select! {
-            Some(msg) = msg_server_rx.recv() => {
-                //Manejar el caso en el que el msg es de desconexión
-                //Manejar el cado en el que es response invalid
-                procces_server_msg(msg).await;
+            response = msg_server_rx.recv() => {
+                match response {
+                    Some(msg) => {
+                        procces_server_msg(msg).await;
+                    }
+                    None  => {
+                        view::disconnected_by_server();
+                        return;
+                    }
+                }
             }
 
             Some(resultado) = rx_for_user_entry.recv() => {
@@ -86,7 +92,7 @@ async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Sen
             _ = tokio::signal::ctrl_c() => {
                 //Mandar mensaje de desconexión
                 //Avisar al usuario que ha sido desconectado
-                break;
+                return;
             }
         }
     }

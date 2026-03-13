@@ -108,16 +108,12 @@ pub(super) async fn procces_letter_aux(letter: Letter<Vec<u8>>, server: Arc<Serv
     }
     TypeReciveMessages::Disconect => {
         let msg = generate_disconected_msg(&letter.usr_sender).unwrap();
+        server.users.remove(&letter.usr_sender.to_lowercase());
         let mut transmisors = Vec::new();
         for kv in server.users.iter() {
-            if kv.key() == &letter.usr_sender.to_lowercase() {
-                continue;
-            }
-            else {
-                transmisors.push(kv.tx.clone());
-            }
+            transmisors.push(kv.tx.clone());
         }
-        server.users.remove(&letter.usr_sender.to_lowercase());
+        
         for tx in transmisors {
             tx.send(msg.clone()).await.unwrap();
         }

@@ -30,6 +30,20 @@ pub(crate)  fn get_username() -> Result<String, ()> {
     println!("Escribe tu nombre de usuario, recuerda que debe ser de máximo 8 caracteres");
     let mut username = String::new();
     io::stdin().read_line(&mut username).expect("Error el obtener nombre de usuario");
+    if username.trim() == "" {
+        println!("El usuario no puede ser vacío.");
+        username.clear();
+        io::stdin().read_line(&mut username).expect("Error el obtener nombre de usuario");
+        if username.trim() == "" {
+            return Err(())
+        }
+        if username.len() > 8 {
+            return Err(())
+        }
+        else {
+            return Ok(String::from(username.trim()))
+        }
+    }
     if username.len() > 8 {
         println!("El nombre de usuario debe ser menor a 8 caracteres");
         println!("Escribe tu nombre de usuario");
@@ -177,6 +191,9 @@ pub(crate) fn print_text_response_no_such_usr(username: String) {
 
 pub(crate) fn print_new_user_connected(username: String){
     println!("{} se ha conectado al chat", username)
+}
+pub(crate) fn disconnected_by_server() {
+    println!("El servidor te ha desconectado");
 }
 
 pub(crate) enum Action {
