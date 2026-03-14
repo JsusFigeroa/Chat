@@ -3,5 +3,5 @@ use cliente::controller;
 async fn main() {
     controller::start().await;
 
-    std::process::exit(0);
+    return;
 }

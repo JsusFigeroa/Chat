@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str;
 
 use serde_json;
 use crate::{type_send_messages::TypeSendMessages};
@@ -93,4 +94,16 @@ pub(super) fn generate_new_user_msg(username: String) -> Vec<u8> {
     let mut msg = serde_json::to_vec(&message).expect("Error al generar mensaje de nuevo usuario");
     msg.push(b'\n');
     msg
+}
+
+pub(crate) fn generate_invitation_msg(username: &str, roomname: &str) -> Vec<u8>{
+    unimplemented!();
+}
+
+pub(crate) fn generate_not_invitated_msg(roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn generate_new_room_user_msg(roomname: &str, new_user: &str) -> Vec<u8> {
+    unimplemented!();
 }

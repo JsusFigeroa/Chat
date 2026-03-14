@@ -1,4 +1,3 @@
-
 Uso de docker.
 Se construye la imagen desde la raíz del proyecto con 
     $ docker build -t nombre_de_img .
