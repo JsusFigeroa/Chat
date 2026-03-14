@@ -107,3 +107,15 @@ pub(crate) fn generate_not_invitated_msg(roomname: &str) -> Vec<u8> {
 pub(crate) fn generate_new_room_user_msg(roomname: &str, new_user: &str) -> Vec<u8> {
     unimplemented!();
 }
+
+pub(crate) fn generate_room_users_msg(roomname: &str, users_map: HashMap<String, State>) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn generate_not_joined_response(username: &str, roomname: &str) -> Vec<u8>{
+    unimplemented!();
+}
+
+pub(crate) fn generate_user_leaved_room(username: &str, roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}

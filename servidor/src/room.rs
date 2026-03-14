@@ -1,6 +1,8 @@
-use crate::{server::server_mesagges::{generate_invitation_msg, generate_new_room_user_msg, generate_not_invitated_msg}, user::User};
+use std::{collections::HashMap, sync::Arc};
+
+use crate::{room, server::server_mesagges::{generate_invitation_msg, generate_new_room_user_msg, generate_not_invitated_msg, generate_not_joined_response, generate_not_user_response, generate_room_users_msg, generate_user_leaved_room}, user::User};
 use tokio::sync::mpsc::Sender;
-use dashmap::DashMap;
+use dashmap::{DashMap, Entry, OccupiedEntry};
 
 
 pub struct Room {
@@ -10,7 +12,11 @@ pub struct Room {
 }
 
 impl Room {
-    pub(crate) async fn send_msg(&self, username: String, msg: Vec<u8>) {
+    pub(crate) async fn send_msg(&self, username: String, msg: Vec<u8>, tx_user_sender: Sender<Vec<u8>>) {
+        if !self.users.contains_key(&username) {
+            let msg = generate_not_joined_response(&username, &self.name);
+            let _ = tx_user_sender.send(msg).await;
+        }
       let users = &self.users;
       let usr_sender = String::from(username.to_lowercase());
       let mut senders = Vec::new();
@@ -70,5 +76,30 @@ impl Room {
             let _ = tx_user_who_accepted.send(msg).await;
         }
 
+    }
+
+    pub(crate) async fn send_users(&self, tx_user_to_send: Sender<Vec<u8>>) {
+        let mut map = HashMap::new();
+        for user in self.users.iter() {
+            let username = user.name.clone();
+            map.insert(username, user.state);
+        }
+        let msg = generate_room_users_msg(&self.name, map);
+        let _ = tx_user_to_send.send(msg).await;
+    }
+
+    pub(crate) async fn remove_user(&self, tx_user_to_remove: Sender<Vec<u8>>, user_to_remove: String) -> usize {
+        let username_lower = user_to_remove.to_lowercase(); 
+        if self.users.contains_key(&username_lower) {
+            self.users.remove(&username_lower);
+            let msg = generate_user_leaved_room(&user_to_remove, &self.name);
+            let _ = tx_user_to_remove.send(msg).await;
+            self.users.len()
+        }
+        else {
+            let msg = generate_not_joined_response(&user_to_remove, &self.name);
+            let _ = tx_user_to_remove.send(msg).await;
+            self.users.len()
+        }
     }
 }
