@@ -72,3 +72,26 @@ pub enum TypeSendMessages {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "operation")]
+pub(crate) enum Operations {
+    #[serde(rename = "INVITE")]
+    Invite,
+    #[serde(rename = "JOIN_ROOM")]
+    JoinRoom,
+    #[serde(rename = "ROOM_USERS")]
+    RoomUsers,
+    #[serde(rename = "ROOM_TEXT")]
+    RoomText,
+    #[serde(rename = "LEAVE:_ROOM")]
+    LeaveRoom,
+    #[serde(rename = "IDENTIFY")]
+    Identify,
+    #[serde(rename = "TEXT")]
+    Text,
+    #[serde(rename = "NEW_ROOM")]
+    NewRoom,
+    #[serde(rename = "INVALID")]
+    Invalid
+}
+

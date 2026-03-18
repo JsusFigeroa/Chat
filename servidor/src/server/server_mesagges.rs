@@ -119,3 +119,36 @@ pub(crate) fn generate_not_joined_response(username: &str, roomname: &str) -> Ve
 pub(crate) fn generate_user_leaved_room(username: &str, roomname: &str) -> Vec<u8> {
     unimplemented!();
 }
+
+pub(crate) fn no_such_room_invite_msg(roomname: &str ) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn no_such_user_invite_msg(username: &str) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn no_such_room_join_room_msg(roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}
+
+//Genera la respuesta para cuando un grupo se crea exitosamente
+pub(crate) fn new_room_success(roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn leave_room_not_such_room(roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn room_text_no_such_room(roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn room_users_not_joined(roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}
+
+pub(crate) fn room_users_no_such_room(roomname: &str) -> Vec<u8> {
+    unimplemented!();
+}
