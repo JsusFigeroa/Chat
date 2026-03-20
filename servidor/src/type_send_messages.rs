@@ -70,7 +70,7 @@ pub enum TypeSendMessages {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) enum Operations {
+pub enum Operations {
     #[serde(rename = "INVITE")]
     Invite,
     #[serde(rename = "JOIN_ROOM")]
@@ -92,7 +92,7 @@ pub(crate) enum Operations {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) enum Result {
+pub enum Result {
     #[serde(rename = "SUCCESS")]
     Success,
     #[serde(rename = "USER_ALREADY_EXISTS")]
