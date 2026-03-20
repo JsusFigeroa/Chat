@@ -14,7 +14,6 @@ mod controller_aux;
 /// si todo lo anterior resulto exitoso, manda a llamar una función que ejecuta el resto de funcionalidades
 /// del cliente.
 pub async  fn start() {
-    view::clear_shell();
     let addr = view::get_addr();
     let socket = TcpStream::connect(addr).await.expect("Error al conectarse al servidor");
     let (sok_reader, mut sok_writer) = socket.into_split();
@@ -25,8 +24,8 @@ pub async  fn start() {
 
         Ok(a) => {view::print_succes_identify(a);}
 
-        Err(_) => {
-            username = retry_get_username();
+        Err(name) => {
+            username = retry_get_username(&name);
             send_identifier(username, &mut sok_writer).await;
             username = get_identify_response(&mut buf_reader).await.unwrap_or_else(|_| {panic!("El nombre elegido no es válido")} );
             view::print_succes_identify(username);

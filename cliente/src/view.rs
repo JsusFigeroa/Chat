@@ -2,13 +2,8 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::io::{self};
 use tokio::io::{BufReader, AsyncBufReadExt, stdin};
-use std::process::Command;
 use tokio::sync::mpsc::Sender;
 use serde::{self,Deserialize,Serialize};
-
-pub(super) fn clear_shell() {
-    Command::new("clear").status().expect("No fue posible limpiar la terminal");
-}
 
 pub(crate)  fn get_addr() -> SocketAddrV4 {
     println!("Ingrese la dirección y puerto en que se conectará con el siguiente formato:");
@@ -61,8 +56,8 @@ pub(crate)  fn get_username() -> Result<String, ()> {
     }
 }
 
-pub(crate)  fn retry_get_username() -> String {
-    println!("El nombre selecionado ya está en uso");
+pub(crate)  fn retry_get_username(username: &str) -> String {
+    println!("El nombre de usuario {} ya está en uso", username);
     get_username().expect("El nombre de usuario no es válido")
 }
 
