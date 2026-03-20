@@ -6,6 +6,7 @@ use crate::controller::controller_aux::{generate_identify};
 use crate::type_receive_message::{OperationType, TypeReciveMesagges};
 use crate::type_send_message::TypeSendMessage;
 use crate::view::{self, Action, get_username, retry_get_username};
+use crate::type_receive_message::Result as Resultado;
 use tokio::sync::mpsc::channel;
 mod controller_aux;
 
@@ -234,44 +235,39 @@ fn procces_server_msg_aux(message: TypeReciveMesagges) {
 async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
     match action {
         Action::Disconnect => {
-            let disconect = TypeSendMessage::DISCONNECT;
-            let mut msg = serde_json::to_vec(&disconect).unwrap();
-            msg.push(b'\n');
+            let disconect = TypeSendMessage::Disconect;
+            let msg = serde_json::to_vec(&disconect).unwrap();
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
         }
         Action::Help => {
-
+            view::print_help_msg();
         }
         Action::PrivateText { username, text } => {
             let private_text = TypeSendMessage::Text { username, text };
-            let mut msg = serde_json::to_vec(&private_text).unwrap();
-            msg.push(b'\n');
+            let msg = serde_json::to_vec(&private_text).unwrap();
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
         }
         Action::Status { status } => {
             let status = TypeSendMessage::Status { status };
-            let mut msg = serde_json::to_vec(&status).unwrap();
-            msg.push(b'\n');
+            let msg = serde_json::to_vec(&status).unwrap();
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
         }
         Action::Users => {
             let users = TypeSendMessage::Users;
-            let mut msg = serde_json::to_vec(&users).unwrap();
-            msg.push(b'\n');
+            let msg = serde_json::to_vec(&users).unwrap();
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
         }
         Action::PublicText { text } => {
             let text = TypeSendMessage::PublicText { text };
-            let mut msg = serde_json::to_vec(&text).unwrap();
-            msg.push(b'\n');
+            let msg = serde_json::to_vec(&text).unwrap();
             let Ok(_) = tx.send(msg).await else {
                 return ;
             };
@@ -317,7 +313,9 @@ async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
 }
 
 async fn send_msg_to_server<T: AsyncWrite + Unpin>(mut writer: T, mut rx: Receiver<Vec<u8>>){
-    while let Some(msg) = rx.recv().await {
+    while let Some(mut msg) = rx.recv().await {
+        msg.push(b'\n');
+        msg.push(0);
         let Ok(_) = writer.write_all(&msg).await else {
             return ;
         };
