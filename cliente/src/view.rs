@@ -98,9 +98,8 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
     if line.is_empty() { return; }
 
     if line.starts_with('/') {
-        // Usamos splitn para dividir máximo en 3 partes, así el mensaje privado 
-        // no se corta por los espacios intermedios.
-        let args: Vec<&str> = line.splitn(3, char::is_whitespace).collect();
+        // Se parte la entrada por espacios
+        let mut args: Vec<&str> = line.split_whitespace().collect();
         
         match args[0] {
             "/status" => {
@@ -125,7 +124,9 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                     let _ = tx.send(Err(())).await;
                     return;
                 }
-                let _ = tx.send(Ok(Action::PrivateText { username: String::from(args[1]), text: String::from(args[2])})).await;
+                let username = args[1].to_string();
+                let text = args.split_off(2).join(" ");
+                let _ = tx.send(Ok(Action::PrivateText { username, text })).await;
                 return;
             }
             "/disconnect" => {
@@ -135,6 +136,61 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
             "/help" => {
                 let _ = tx.send(Ok(Action::Help)).await;
                 return;
+            }
+            "/newRoom" => {
+                if args.len() < 2 {
+                    let _ = tx.send(Err(())).await;
+                    return;
+                }
+                let _ = tx.send(Ok(Action::NewRoom { roomname: args[1].to_string() })).await;
+                return ;
+            }
+            "/invite" => {
+                if args.len() < 3 {
+                    let _ = tx.send(Err(())).await;
+                    return;
+                }
+                let roomname = args[1].to_string();
+                let usernames: Vec<String> = args.split_off(2).into_iter().map(|slc| slc.to_string()).collect();
+                let _ = tx.send(Ok(Action::Invite { roomname, usernames })).await;
+                return ;
+            }
+            "/joinRoom" => {
+                if args.len() < 2 {
+                    let _ = tx.send(Err(())).await;
+                    return;
+                }
+                let roomname = args[1].to_string();
+                let _ = tx.send(Ok(Action::JoinRoom { roomname })).await;
+                return ;
+            }
+            "/roomUsers" => {
+                if args.len() < 2 {
+                    let _ = tx.send(Err(())).await;
+                    return;
+                }
+                let roomname = args[1].to_string();
+                let _ = tx.send(Ok(Action::RoomUsers { roomname })).await;
+                return ;
+            }
+            "/roomText" => {
+                if args.len() < 3 {
+                    let _ = tx.send(Err(())).await;
+                    return;
+                }
+                let roomname = args[1].to_string();
+                let text = args.split_off(2).join(" ");
+                let _ = tx.send(Ok(Action::RoomText { roomname, text })).await;
+                return ;
+            }
+            "/leaveRoom" => {
+                if args.len() < 2 {
+                    let _ = tx.send(Err(())).await;
+                    return;
+                }
+                let roomname = args[1].to_string();
+                let _ = tx.send(Ok(Action::LeaveRoom { roomname })).await;
+                return ;
             }
             _ => {
                 let _ = tx.send(Err(())).await;
