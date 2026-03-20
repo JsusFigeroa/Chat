@@ -117,6 +117,118 @@ async fn procces_server_msg(message: String) {
     procces_server_msg_aux(msg);
 }
 
+fn procces_server_msg_aux(message: TypeReciveMesagges) {
+    match message {
+        TypeReciveMesagges::Disconnected { username } => {
+            view::user_disconnected(username);
+        }
+        TypeReciveMesagges::NewStatus { username, status } => {
+            view::print_new_status(username, status);
+        }
+        TypeReciveMesagges::PublicTextFrom { username, text } => {
+            view::print_public_text(username, text);
+        }
+        TypeReciveMesagges::Response { operation: OperationType::NewRoom, result: Resultado::Success, extra } => {
+            if let Some(extra) = extra {
+                view::print_success_new_room_created(&extra);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::NewRoom, result: Resultado::RoomAlreadyExists, extra } => {
+            if let Some(roomname) = extra {
+                view::print_room_already_exist_result(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::Invite, result: Resultado::NoSuchRoom, extra } => {
+            if let Some(roomname) = extra {
+                view::print_no_such_room_to_invite(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::Invite, result: Resultado::NoSuchUser, extra } => {
+            if let Some(username) = extra {
+                view::print_no_such_user_to_invite(&username);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::JoinRoom, result: Resultado::Success, extra } => {
+            if let Some(roomname) = extra {
+                view::print_success_join_room(&roomname);
+            };
+        }
+        TypeReciveMesagges::Response { operation: OperationType::JoinRoom, result: Resultado::NoSuchRoom, extra } => {
+            if let Some(roomname) = extra {
+                view::print_no_such_room_to_join(&roomname);
+            };
+        }
+        TypeReciveMesagges::Response { operation: OperationType::JoinRoom, result: Resultado::NotInvited, extra } => {
+            if let Some(roomname) = extra {
+                view::print_not_invited_to_room(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::RoomUsers, result: Resultado::NoSuchRoom, extra } => {
+            if let Some(roomname) = extra {
+                view::print_no_such_room_to_get_users(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::RoomUsers, result: Resultado::NotJoined, extra } => {
+            if let Some(roomname) = extra {
+                view::print_not_joined_room_to_get_users(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::RoomText, result: Resultado::NoSuchRoom, extra } => {
+            if let Some(roomname) = extra {
+                view::print_no_such_room_to_send_room_text(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::RoomText, result: Resultado::NotJoined, extra } => {
+            if let Some(roomname) = extra {
+                view::print_not_joined_to_send_room_text(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::LeaveRoom, result: Resultado::NoSuchRoom, extra } => {
+            if let Some(roomname) = extra {
+                view::print_no_such_room_to_leave(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::LeaveRoom, result: Resultado::NotJoined, extra } => {
+            if let Some(roomname) = extra {
+                view::print_not_joined_to_leave(&roomname);
+            }
+        }
+        TypeReciveMesagges::Response { operation: OperationType::Invalid, result: Resultado::Invalid, extra: _ } => {
+            view::print_invalid_response();
+        }
+        TypeReciveMesagges::Response { operation: OperationType::Text, result: Resultado::NoSuchUser, extra } => {
+            if let Some(extra) = extra {
+                view::print_text_response_no_such_usr(extra);
+            };
+        }
+        TypeReciveMesagges::UserList { users } => {
+            view::print_users(users);
+        }
+        TypeReciveMesagges::TextFrom { username, text } => {
+            view::print_private_text(username, text);
+        }
+        TypeReciveMesagges::NewUser { username } => {
+            view::print_new_user_connected(username);
+        }
+        TypeReciveMesagges::Invitation { username, roomname } => {
+            view::print_invitation_to_room(&username, &roomname);
+        }
+        TypeReciveMesagges::JoinedRoom { roomname, username } => {
+            view::print_user_joined_room(&username, &roomname);
+        }
+        TypeReciveMesagges::LeftRoom { roomname, username } => {
+            view::print_user_leaved_room(&username, &roomname);
+        }
+        TypeReciveMesagges::RoomTextFrom { roomname, username, text } => {
+            view::print_room_text_from(&username, &roomname, &text);
+        }
+        TypeReciveMesagges::RoomUserList { roomname, users } => {
+            view::print_room_users(&roomname, users);
+        }
+        _ => {panic!("El mensaje recibido no coincide con el protocolo")}
+    }
+}
+
 async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
     match action {
         Action::Disconnect => {
