@@ -276,6 +276,43 @@ async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
                 return ;
             };
         }
+        Action::NewRoom { roomname } => {
+            let message = TypeSendMessage::NewRoom { roomname };
+            let msg = serde_json::to_vec(&message).unwrap();
+            let _ = tx.send(msg).await;
+            return ;
+        }
+        Action::Invite { roomname, usernames } => {
+            let message = TypeSendMessage::Invite { roomname, usernames };
+            let msg = serde_json::to_vec(&message).unwrap();
+            let _ = tx.send(msg).await;
+            return ;
+        }
+        Action::JoinRoom { roomname } => {
+            let message = TypeSendMessage::JoinRoom { roomname };
+            let msg = serde_json::to_vec(&message).unwrap();
+            let _ = tx.send(msg).await;
+            return ;
+        }
+        Action::RoomText { roomname, text } => {
+            let message = TypeSendMessage::RoomText { roomname, text };
+            let msg = serde_json::to_vec(&message).unwrap();
+            let _ = tx.send(msg).await;
+            return ;
+        }
+        Action::LeaveRoom { roomname } => {
+            let message = TypeSendMessage::LeaveRoom { roomname };
+            let msg = serde_json::to_vec(&message).unwrap();
+            let _ = tx.send(msg).await;
+            return ;
+        }
+        Action::RoomUsers { roomname } => {
+            let message = TypeSendMessage::RoomUsers { roomname };
+            let msg = serde_json::to_vec(&message).unwrap();
+            let _ = tx.send(msg).await;
+            return ;
+        }
+
     }
 }
 
