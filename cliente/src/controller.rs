@@ -343,7 +343,7 @@ async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) 
                         panic!("El mensaje no es acorde al protocolo")
                     };
                     return Ok(username);
-            }
+                }
                 if let Resultado::UserAlreadyExists = result {
                     let Some(username) = extra else {
                         panic!("El mensaje no es acorde al protocolo")
