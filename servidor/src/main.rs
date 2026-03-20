@@ -1,8 +1,10 @@
-use servidor::server::{Server};
+use servidor::{server::Server, view};
 
 #[tokio::main]
 async fn main() {
-    Server::run().await;
+    let port = view::get_port();
+    let server = Server::new(port);
+    server.run().await;
 }
 
 
