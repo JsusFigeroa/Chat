@@ -99,6 +99,8 @@ impl Server {
         if let TypeReciveMessages::Identify { username } = message {
             let username_lower = &username.to_lowercase();
             if self.users.contains_key(username_lower) {
+                let msg = server_mesagges::generate_user_already_exists_response(&username);
+                let _ = writter.write_all(&msg).await;
                 let Ok(new_username) = aux_functions::retry_identify(&mut reader).await else {
                     let msg = server_mesagges::generate_not_valid_msg();
                     let _ = writter.write_all(&msg).await;

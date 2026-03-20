@@ -78,17 +78,6 @@ pub(super) fn generate_text_from_msg(username: &str, text: &str) -> Vec<u8> {
     msg
 }
 
-pub(super) fn generate_text_form_user_not_exist_response(username: &str) -> Vec<u8> {
-    let message = TypeSendMessages::Response { operation: Operations::Text, result: Resultado::NoSuchUser, extra:  Some(username.to_string()) };
-    // let message = TypeSendMessages::Response { type_msg: String::from("RESPONSE") ,
-    //                                                              operation: String::from("TEXT"),
-    //                                                              result: String::from("NO_SUCH_USER"),
-    //                                                              extra: username };
-    let mut msg = serde_json::to_vec(&message).expect("Error al generar mensaje de usuario no existe");
-    msg.push(b'\n');
-    msg
-}
-
 pub(super) fn generate_new_user_msg(username: &str) -> Vec<u8> {
     let message = TypeSendMessages::NewUser { username: username.to_string() };
     let mut msg = serde_json::to_vec(&message).expect("Error al generar mensaje de nuevo usuario");
