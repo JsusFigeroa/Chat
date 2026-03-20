@@ -1,4 +1,4 @@
-use crate::{type_receive_message::{OperationType, TypeReciveMesagges}, type_send_message::TypeSendMessage, view};
+use crate::{type_send_message::TypeSendMessage};
 
 
 pub(super) fn generate_identify(name: String) -> Vec<u8> {

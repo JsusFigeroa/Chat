@@ -352,7 +352,27 @@ pub(crate) enum Action {
     PublicText {
         text: String
     },
-    Help
+    Help,
+    NewRoom {
+        roomname: String
+    },
+    Invite {
+        roomname: String,
+        usernames: Vec<String>
+    },
+    JoinRoom {
+        roomname: String
+    },
+    RoomUsers {
+        roomname: String
+    },
+    RoomText {
+        roomname: String,
+        text: String,
+    },
+    LeaveRoom {
+        roomname: String,
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
