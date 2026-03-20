@@ -73,7 +73,7 @@ async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Sen
                     }
                     None  => {
                         view::disconnected_by_server();
-                        return;
+                        std::process::exit(0);
                     }
                 }
             }
