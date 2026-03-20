@@ -330,7 +330,7 @@ async fn send_identifier(name: String, socket: &mut OwnedWriteHalf) {
     socket.write_all(&id_message).await.unwrap_or_default();
 }
 
-async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) -> Result<String, ()> {
+async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) -> Result<String, String> {
     let mut response = String::new();
     let bytes = socket.read_line(&mut response).await.expect("No fue posible leer datos del socket");
     if bytes == 0 {
@@ -339,19 +339,25 @@ async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) 
     println!("{}" , response);
     match serde_json::from_str::<TypeReciveMesagges>(response.trim()).expect("El mensaje recibido no era del tipo de mensajes que recibe el cliente") {
         TypeReciveMesagges::Response { operation, result, extra } => {
-            if operation != OperationType::Identify {
-                panic!("La respuesta no es la correspondiente de acuerdo al protocolo")
+            if let OperationType::Identify = operation {
+                if let Resultado::Success = result {
+                    let Some(username) = extra else {
+                        panic!("El mensaje no es acorde al protocolo")
+                    };
+                    return Ok(username);
             }
-            if result != "SUCCESS" {
-                if result == "USER_ALREADY_EXISTS" {
-                    Err(())
+                if let Resultado::UserAlreadyExists = result {
+                    let Some(username) = extra else {
+                        panic!("El mensaje no es acorde al protocolo")
+                    };
+                    return Err(username);
                 }
                 else {
-                    panic!("EL mensaje no coincide con el protocolo")
+                    panic!("El mensaje no es acorde al protocolo");
                 }
             }
             else {
-                Ok(extra)
+                panic!("La espuesta no es acorde al protocolo")
             }
         }
         _ => panic!("La respuesta no es la esperada según el protocolo")
