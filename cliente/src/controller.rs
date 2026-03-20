@@ -2,7 +2,7 @@ use tokio::sync::mpsc::{Sender, Receiver};
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::{TcpStream};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
-use crate::controller::controller_aux::{generate_identify, procces_server_msg_aux};
+use crate::controller::controller_aux::{generate_identify};
 use crate::type_receive_message::{OperationType, TypeReciveMesagges};
 use crate::type_send_message::TypeSendMessage;
 use crate::view::{self, Action, get_username, retry_get_username};
@@ -101,10 +101,13 @@ async fn get_server_msg<R: AsyncRead + Unpin>(tx: Sender<String>, mut reader: Bu
     loop {
         let mut line = String::new();
         let Ok(_) = reader.read_line(&mut line).await else {
-            //Hacer que envie señal de desconexión
+            view::print_server_close_conection();
             return ;
         };
-        tx.send(String::from(line.trim())).await.unwrap();
+        let trim_line = line.trim();
+        let clean_line = trim_line.trim_matches(|b| b == '\0');
+        let _ = tx.send(clean_line.to_string()).await;
+        line.clear();
     }
 
 }
