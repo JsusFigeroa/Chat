@@ -1,5 +1,5 @@
 use crate::room::Room;
-use crate::server::server_mesagges::{generate_new_status_msg, generate_new_user_msg, generate_not_identified_msg, generate_not_valid_msg, generate_public_text_from, generate_succes_identify_response, generate_text_from_msg, generate_user_already_exists_response, generate_user_not_exist_response, generate_users_msg};
+use crate::server::server_mesagges::{generate_new_status_msg, generate_new_user_msg, generate_not_identified_msg, generate_public_text_from, generate_succes_identify_response, generate_text_from_msg, generate_users_msg};
 use crate::type_recive_messages::TypeReciveMessages;
 use crate::user::{State, User};
 use dashmap::Entry;
@@ -8,15 +8,13 @@ use dashmap::DashMap;
 use serde_json::{self};
 use tokio::sync::mpsc::{Receiver, Sender, self};
 use std::net::{Ipv4Addr, SocketAddrV4};
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use std::sync::{Arc};
-use tokio_util::codec::{FramedRead, LinesCodec};
-use futures::stream::StreamExt;
 use async_channel::{self, Sender as Senderr, Receiver as Receiverr};
 
-pub mod server_mesagges;
-pub mod aux_functions;
+pub(super)  mod server_mesagges;
+pub(super)  mod aux_functions;
 
 pub struct Server {
     users: Arc<DashMap<String, Arc<User>>>,
@@ -33,7 +31,7 @@ impl Server {
 
     pub async fn run(self: Arc<Self>){
         println!("Aceptando conexiones");
-        self.get_conections();
+        self.get_conections().await;
     }  
 
     async fn get_conections(self: Arc<Self>) {
@@ -53,69 +51,72 @@ impl Server {
     async fn process_conection(self: Arc<Self>, socket: TcpStream, global_tx: Senderr<Letter<Vec<u8>>>) {
         let (sok_reader, mut sok_writter) = socket.into_split();
         let (user_tx, user_rx) = mpsc::channel::<Vec<u8>>(124);
-        let mut reader = FramedRead::new(sok_reader, LinesCodec::new_with_max_length(124));
-        let Ok(msg) = reader.next().await.unwrap() else {
-            return ;
-        };
-        let lectura = msg.trim();
-        let Ok(message) = serde_json::from_str(&lectura) else {
-            if let Ok(msg) = generate_not_valid_msg() {
-                let _ = sok_writter.write_all(&msg).await;
-                let _ = sok_writter.shutdown().await;
-                return;
-            };
-            return ;
-        };
-        if let TypeReciveMessages::Identify { mut username } = message {
+        let mut buff_reader = BufReader::new(sok_reader);
+        let mut line = String::with_capacity(1024);
+        let read_limit = 1024;
+        match (&mut buff_reader).take(read_limit as u64).read_line(&mut line).await {
+            Ok(0) => {return ;}
+            Ok(n) if n >= read_limit && !line.ends_with('\n') => {
+                return ;
+            } 
+            Ok(_) => {
 
-            let mut username_lowercase = username.to_lowercase();
+            }
+            Err(_) => {return ;}
+        }
+        let clean_line = line.trim_matches(|c| c == '\0');
+        let username;
+        match self.clone().try_identify(clean_line, &mut buff_reader, &mut sok_writter).await {
+            Ok(name) => {username = name}
+            Err(_) => {return}
+        }
+        let username_lower = username.to_lowercase();
+        let usr_tx_clone = user_tx.clone();
+        let global_tx_clone = global_tx.clone();
+        let username_clone = username.clone();
+        tokio::spawn(async move {
+            Server::build_msg_client_processor(usr_tx_clone, username_clone, buff_reader, global_tx_clone).await;
+        });
+        let msg = generate_succes_identify_response(&username);
+        let _ = sok_writter.write_all(&msg).await;
+        tokio::spawn(async move {
+            Server::build_msg_sender_to_client(user_rx, sok_writter).await;
+        });
+        println!("Nuevo usuario con nombre {} conectado", username);
+        let new_user = User::new(username, user_tx);
+        let msg_new_user = TypeReciveMessages::Identify { username: new_user.name.clone() };
+        let letter = Letter::new(new_user.name.clone(), msg_new_user, new_user.tx.clone());
+        self.users.insert(username_lower, Arc::new(new_user));
+        let _ = global_tx.send(letter).await;
+    }
 
-            if self.users.contains_key(&username_lowercase) {
-                if let Ok(msg) = generate_user_already_exists_response(&username) {
-                    let _ = sok_writter.write_all(&msg).await;
-                }
+    async fn try_identify<T: AsyncRead + Unpin, R: AsyncWrite + Unpin>(self: Arc<Self>, recived_line: &str, mut reader: &mut BufReader<T>, writter: &mut R) -> Result<String, ()> {
+        let Ok(message) = serde_json::from_str::<TypeReciveMessages>(recived_line) else {
+            let msg = server_mesagges::generate_not_valid_msg();
+            let _ = writter.write_all(&msg).await;
+            return Err(());
+        };
+        if let TypeReciveMessages::Identify { username } = message {
+            let username_lower = &username.to_lowercase();
+            if self.users.contains_key(username_lower) {
                 let Ok(new_username) = aux_functions::retry_identify(&mut reader).await else {
-                    if let Ok(msg) = server_mesagges::generate_not_valid_msg() {
-                        let _ = sok_writter.write_all(&msg).await;
-                    }
-                    return ;
+                    let msg = server_mesagges::generate_not_valid_msg();
+                    let _ = writter.write_all(&msg).await;
+                    return Err(());
                 };
-                let new_username_lower = new_username.to_lowercase();
-                if self.users.contains_key(&new_username_lower) {
-                    if let Ok(msg) = server_mesagges::generate_not_valid_msg() {
-                        let _ = sok_writter.write_all(&msg).await;
-                    }
-                    return;
+                let new_username_lower = &new_username.to_lowercase();
+                if self.users.contains_key(new_username_lower) {
+                    return Err(());
                 }
-                username = new_username;
+                return Ok(new_username);
             }
-            username_lowercase = username.to_lowercase();
-            let user_tx_clone = user_tx.clone();
-            let username_clone = username.clone();
-            let global_tx_clone = global_tx.clone();
-            tokio::spawn(async move {
-                Server::build_msg_client_processor(user_tx_clone, username_clone, reader, global_tx_clone).await;
-            });
-            if let Ok(msg) = generate_succes_identify_response(&username) {
-                let Ok(_) = sok_writter.write_all(&msg).await else {
-                    return ;
-                };
+            else {
+                return Ok(username);
             }
-            tokio::spawn(async move {
-                Server::build_msg_sender_to_client(user_rx, sok_writter).await;
-            });
-            println!("Nuevo usuario con nombre {} conectado", username);
-            let new_user = User::new(username, user_tx);
-            let msg_new_user = TypeReciveMessages::Identify { username: new_user.name.clone() };
-            let letter = Letter::new(new_user.name.clone(), msg_new_user, new_user.tx.clone());
-            self.users.insert(username_lowercase, Arc::new(new_user));
-            let _ = global_tx.send(letter).await;
         }
-        else {
-            let msg = generate_not_identified_msg().unwrap();
-            let _ = sok_writter.write_all(&msg).await;
-            return ;
-        }
+        let msg = generate_not_identified_msg();
+        let _ = writter.write_all(&msg).await;
+        return Err(());
     }
 
     fn build_msg_processors(self: Arc<Self>, rx: Receiverr<Letter<Vec<u8>>>){
@@ -139,8 +140,8 @@ impl Server {
 
     async fn build_msg_sender_to_client<T: AsyncWrite + Unpin>(mut rx: Receiver<Vec<u8>>, mut writer: T) {
         
-        while let Some(msg) = rx.recv().await {
-
+        while let Some(mut msg) = rx.recv().await {
+            msg.push(0);
             let Ok(_) = writer.write_all(&msg).await else {
                 return ;
             };
@@ -157,38 +158,39 @@ impl Server {
     /// se lo desconecta.
     async fn build_msg_client_processor<T: AsyncRead + Unpin>(user_tx: Sender<Vec<u8>>, 
                                                              username: String,
-                                                             mut reader: FramedRead<T, LinesCodec>,
+                                                             mut reader: BufReader<T>,
                                                             global_tx: Senderr<Letter<Vec<u8>>>) {
-
-        while let Some(result) = reader.next().await {
-            match result {
-                Ok(msg) => {
-                    let Ok(message) = serde_json::from_str(&msg) else {
-                        if let Ok(message) = generate_not_valid_msg() {
-                            let _ = user_tx.send(message).await;
-                        }
+        let mut line = String::new();
+        let limit = 1024;
+        loop {
+            match (&mut reader).take(limit as u64).read_line(&mut line).await {
+                Ok(0) => {break;}
+                Ok(n) if n >= limit && !line.ends_with('\n') => {break;}
+                Ok(_n) => {
+                    let clean_line = line.trim_matches(|b| b == '\0');
+                    let Ok(message) = serde_json::from_str::<TypeReciveMessages>(clean_line) else {
+                        let msg = server_mesagges::generate_not_valid_msg();
+                        let _ = user_tx.send(msg).await;
                         break;
                     };
-                    if let TypeReciveMessages::Disconect = message  {
+                    if let TypeReciveMessages::Disconect = message {
                         break;
-                    };
+                    }
                     if let TypeReciveMessages::Identify { username: _ } = message {
-                        if let Ok(message) = generate_not_valid_msg() {
-                            let _ = user_tx.clone().send(message).await;
-                        }
+                        let msg = server_mesagges::generate_not_valid_msg();
+                        let _ = user_tx.send(msg).await;
                         break;
                     }
                     let letter = Letter::new(username.clone(), message, user_tx.clone());
                     let _ = global_tx.send(letter).await;
+                    line.clear();
                     continue;
                 }
-                Err(_) => {
-                    break;
-                }
+                Err(_) => {break;}
             }
         }
-        let disconect = TypeReciveMessages::Disconect;
-        let letter = Letter::new(username, disconect, user_tx.clone());
+        let disconnect = TypeReciveMessages::Disconect;
+        let letter = Letter::new(username, disconnect, user_tx.clone());
         drop(reader);
         drop(user_tx);
         let _ = global_tx.send(letter).await;
@@ -204,7 +206,7 @@ impl Server {
                 }
                 transmisors.push(kv.tx.clone());
             }
-            let msg = generate_public_text_from(&letter.usr_sender, text);
+            let msg = generate_public_text_from(&letter.usr_sender, &text);
             for tx in transmisors {
                 let Ok(_) = tx.send(msg.clone()).await else {
                     return ;
@@ -242,13 +244,13 @@ impl Server {
         }
         TypeReciveMessages::Text { username, text } => {
             let username_lower = &username.to_lowercase();
-            let msg = generate_text_from_msg(letter.usr_sender, text);
+            let msg = generate_text_from_msg(&letter.usr_sender, &text);
             let user = {
                 if let Some(kv) = self.users.get_mut(username_lower){
                     kv.value().clone()           
                 }
                 else {
-                    let msg = generate_user_not_exist_response(username);
+                    let msg = server_mesagges::generate_text_user_not_exist(&username);
                     let _ = letter.reply_to.send(msg).await;    
                     return ;
                 }
@@ -256,7 +258,7 @@ impl Server {
             let _ = user.tx.send(msg).await;
         }
         TypeReciveMessages::Identify { username } => {
-            let msg = generate_new_user_msg(username.clone());
+            let msg = generate_new_user_msg(&username);
             let mut transmisors = Vec::with_capacity(self.users.len());
             for kv in self.users.iter() {
                 if kv.key() == &username.to_lowercase() {
@@ -308,11 +310,10 @@ impl Server {
                 for kv in self.users.iter() {
                     transmisors.push(kv.tx.clone());
                 }
-                if let Ok(msg) = server_mesagges::generate_disconected_msg(&letter.usr_sender){
-                    for tx in transmisors {
-                        let _ = tx.send(msg.clone()).await;
-                    }
-                };
+                let msg = server_mesagges::generate_disconected_msg(&letter.usr_sender);
+                for tx in transmisors {
+                    let _ = tx.send(msg.clone()).await;
+                }
             };  
         }
         
@@ -398,8 +399,7 @@ impl Server {
                 let kv_opt = self.rooms.get(&roomname.to_lowercase());
                 if let Some(kv) = kv_opt {
                     let room = kv.value();
-                    let msg = text.into_bytes();
-                    let _ = room.send_msg(letter.usr_sender, msg, letter.reply_to).await;
+                    let _ = room.send_msg(letter.usr_sender, text, letter.reply_to).await;
                 }
             }
             else {
