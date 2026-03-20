@@ -70,7 +70,6 @@ pub enum TypeSendMessages {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
 pub(crate) enum Operations {
     #[serde(rename = "INVITE")]
     Invite,
@@ -93,7 +92,6 @@ pub(crate) enum Operations {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
 pub(crate) enum Result {
     #[serde(rename = "SUCCESS")]
     Success,
