@@ -1,4 +1,5 @@
-/target
+servidor/target
+cliente/target
 Protocolo.md
 reporte.fls
 reporte.log 
