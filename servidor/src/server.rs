@@ -27,6 +27,7 @@ pub struct Server {
 }
 
 impl Server {
+    #[must_use]
     pub fn new(port: u16) -> Arc<Server> {
         let users = Arc::new(DashMap::new());
         let rooms = Arc::new(DashMap::new());
@@ -39,7 +40,7 @@ impl Server {
     }
 
     async fn get_conections(self: Arc<Self>) {
-        let addr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), self.port);
+        let addr = SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, self.port);
         let listener = TcpListener::bind(addr).await.unwrap();
         let (tx, rx) = async_channel::bounded::<Letter<Vec<u8>>>(124);
         self.clone().build_msg_processors(rx.clone());
@@ -51,7 +52,7 @@ impl Server {
             tokio::spawn(async move {
                 server_for_client
                     .process_conection(socket, tx_for_client)
-                    .await
+                    .await;
             });
         }
     }
@@ -71,27 +72,22 @@ impl Server {
             .read_line(&mut line)
             .await
         {
-            Ok(0) => {
-                return;
-            }
             Ok(n) if n >= read_limit && !line.ends_with('\n') => {
                 return;
             }
             Ok(_) => {}
-            Err(_) => {
+            _ => {
                 return;
             }
         }
         let clean_line = line.trim_matches(|c| c == '\0');
-        let username;
-        match self
+        let Ok(username) = self
             .clone()
             .try_identify(clean_line, &mut buff_reader, &mut sok_writter)
             .await
-        {
-            Ok(name) => username = name,
-            Err(_) => return,
-        }
+        else {
+            return;
+        };
         let username_normalized = username.to_lowercase();
         let usr_tx_clone = user_tx.clone();
         let global_tx_clone = global_tx.clone();
@@ -110,7 +106,7 @@ impl Server {
         tokio::spawn(async move {
             Server::build_msg_sender_to_client(user_rx, sok_writter).await;
         });
-        println!("Nuevo usuario con nombre {} conectado", username);
+        println!("Nuevo usuario con nombre {username} conectado");
         let new_user = User::new(username, user_tx);
         let msg_new_user = TypeReciveMessages::Identify {
             username: new_user.name.clone(),
@@ -139,29 +135,31 @@ impl Server {
                 }
                 let msg = server_mesagges::generate_user_already_exists_response(&username);
                 let _ = writter.write_all(&msg).await;
-                match aux_functions::retry_identify(reader).await {
-                    Ok(new_username) => username = new_username,
-                    Err(_) => {
-                        let msg = server_mesagges::generate_not_valid_msg();
-                        let _ = writter.write_all(&msg).await;
-                        return Err(());
-                    }
+                if let Ok(new_username) = aux_functions::retry_identify(reader).await {
+                    username = new_username;
+                } else {
+                    let msg = server_mesagges::generate_not_valid_msg();
+                    writter.write_all(&msg).await;
+                    return Err(());
                 }
             }
         }
         let msg = generate_not_identified_msg();
         let _ = writter.write_all(&msg).await;
-        return Err(());
+        Err(())
     }
 
     fn build_msg_processors(self: Arc<Self>, rx: Receiverr<Letter<Vec<u8>>>) {
-        for _ in 0..5 {
+        for _ in 0..4 {
             let rx_clone = rx.clone();
             let self_clone = self.clone();
             tokio::spawn(async move {
                 self_clone.process_letter(rx_clone).await;
             });
         }
+        tokio::spawn(async move {
+            self.process_letter(rx).await;
+        });
     }
 
     /// Recibe una carta por la cola de mensajes y se encarga de procesar y llevar a cabo la acción correspondiente.
@@ -179,7 +177,7 @@ impl Server {
     ) {
         while let Some(mut msg) = rx.recv().await {
             msg.push(0);
-            let Ok(_) = writer.write_all(&msg).await else {
+            let Ok(()) = writer.write_all(&msg).await else {
                 return;
             };
         }
@@ -202,9 +200,6 @@ impl Server {
         let limit = 1024;
         loop {
             match (&mut reader).take(limit as u64).read_line(&mut line).await {
-                Ok(0) => {
-                    break;
-                }
                 Ok(n) if n >= limit && !line.ends_with('\n') => {
                     break;
                 }
@@ -226,15 +221,14 @@ impl Server {
                     let letter = Letter::new(username.clone(), message, user_tx.clone());
                     let _ = global_tx.send(letter).await;
                     line.clear();
-                    continue;
                 }
-                Err(_) => {
+                _ => {
                     break;
                 }
             }
         }
         let disconnect = TypeReciveMessages::Disconect;
-        println!("El usuario {} se ha desconectado", username);
+        println!("El usuario {username} se ha desconectado");
         let letter = Letter::new(username, disconnect, user_tx.clone());
         drop(reader);
         drop(user_tx);
@@ -253,7 +247,7 @@ impl Server {
                 }
                 let msg = generate_public_text_from(&letter.usr_sender, &text);
                 for tx in transmisors {
-                    let Ok(_) = tx.send(msg.clone()).await else {
+                    let Ok(()) = tx.send(msg.clone()).await else {
                         return;
                     };
                 }
@@ -306,9 +300,8 @@ impl Server {
                 for kv in self.users.iter() {
                     if kv.key() == &username.to_lowercase() {
                         continue;
-                    } else {
-                        transmisors.push(kv.tx.clone());
                     }
+                    transmisors.push(kv.tx.clone());
                 }
                 for tx in transmisors {
                     let _ = tx.send(msg.clone()).await;
@@ -319,7 +312,7 @@ impl Server {
                 if let Some((name, user)) = self.users.remove(&letter.usr_sender.to_lowercase()) {
                     let guard_room_keys = user.rooms_keys.lock().await;
                     let mut user_rooms = Vec::with_capacity((*guard_room_keys).len());
-                    for room_key in (*guard_room_keys).iter() {
+                    for room_key in &*guard_room_keys {
                         let room = {
                             if let Some(kv) = self.rooms.get(room_key) {
                                 kv.value().clone()
@@ -335,7 +328,7 @@ impl Server {
                         room.remove_disconected_user(&name).await;
                     }
                     let guard_invitation_room_keys = user.invitations_room_keys.lock().await;
-                    for room_key in (*guard_invitation_room_keys).iter() {
+                    for room_key in &*guard_invitation_room_keys {
                         let room = {
                             if let Some(kv) = self.rooms.get(room_key) {
                                 kv.value().clone()
@@ -354,7 +347,7 @@ impl Server {
                     for tx in transmisors {
                         let _ = tx.send(msg.clone()).await;
                     }
-                };
+                }
             }
 
             TypeReciveMessages::Invite {
@@ -365,31 +358,28 @@ impl Server {
                     let opt_user = usernames
                         .iter()
                         .find(|&k| !self.users.contains_key(&k.to_lowercase()));
-                    match opt_user {
-                        Some(username) => {
-                            let msg = server_mesagges::no_such_user_invite_msg(username);
-                            let _ = letter.reply_to.send(msg).await;
-                        }
-                        None => {
-                            let mut users = Vec::new();
-                            for username in usernames {
-                                let opt_user = self
-                                    .users
-                                    .get(&username.to_lowercase())
-                                    .map(|kv| kv.value().clone());
-                                if let Some(user) = opt_user {
-                                    users.push(user);
-                                };
+                    if let Some(username) = opt_user {
+                        let msg = server_mesagges::no_such_user_invite_msg(username);
+                        let _ = letter.reply_to.send(msg).await;
+                    } else {
+                        let mut users = Vec::new();
+                        for username in usernames {
+                            let opt_user = self
+                                .users
+                                .get(&username.to_lowercase())
+                                .map(|kv| kv.value().clone());
+                            if let Some(user) = opt_user {
+                                users.push(user);
                             }
-                            let room = {
-                                if let Some(kv) = self.rooms.get(&roomname.to_lowercase()) {
-                                    kv.value().clone()
-                                } else {
-                                    return;
-                                }
-                            };
-                            let _ = room.process_invitation(users, &letter.usr_sender).await;
                         }
+                        let room = {
+                            if let Some(kv) = self.rooms.get(&roomname.to_lowercase()) {
+                                kv.value().clone()
+                            } else {
+                                return;
+                            }
+                        };
+                        room.process_invitation(users, &letter.usr_sender).await;
                     }
                 } else {
                     let msg = server_mesagges::no_such_room_invite_msg(&roomname);
@@ -407,8 +397,7 @@ impl Server {
                         return;
                     }
                 };
-                let _ = room
-                    .accept_invitation(&letter.usr_sender, letter.reply_to)
+                room.accept_invitation(&letter.usr_sender, letter.reply_to)
                     .await;
             }
             TypeReciveMessages::NewRoom { roomname } => {
@@ -448,8 +437,7 @@ impl Server {
                     let kv_opt = self.rooms.get(&roomname.to_lowercase());
                     if let Some(kv) = kv_opt {
                         let room = kv.value();
-                        let _ = room
-                            .send_msg(letter.usr_sender, text, letter.reply_to)
+                        room.send_msg(letter.usr_sender, text, letter.reply_to)
                             .await;
                     }
                 } else {
@@ -468,7 +456,7 @@ impl Server {
                         return;
                     }
                 };
-                let _ = room.send_users(letter.reply_to, letter.usr_sender).await;
+                room.send_users(letter.reply_to, letter.usr_sender).await;
             }
         }
     }
