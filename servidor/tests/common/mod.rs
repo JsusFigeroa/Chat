@@ -42,4 +42,3 @@ pub fn generate_vec_msg(message: &TypeReciveMessages) -> Vec<u8> {
     msg.push(b'\n');
     return msg;
 }
-

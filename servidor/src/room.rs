@@ -1,7 +1,14 @@
+use crate::{
+    server::server_mesagges::{
+        self, generate_invitation_msg, generate_new_room_user_msg, generate_not_invitated_msg,
+        generate_not_joined_response, generate_room_users_msg, generate_user_leaved_room,
+        room_users_not_joined,
+    },
+    user::User,
+};
+use dashmap::DashMap;
 use std::{collections::HashMap, sync::Arc};
-use crate::{server::server_mesagges::{self, generate_invitation_msg, generate_new_room_user_msg, generate_not_invitated_msg, generate_not_joined_response, generate_room_users_msg, generate_user_leaved_room, room_users_not_joined}, user::User};
 use tokio::sync::mpsc::Sender;
-use dashmap::{DashMap};
 #[derive(Clone)]
 pub struct Room {
     name: String,
@@ -10,21 +17,28 @@ pub struct Room {
 }
 
 impl Room {
-    pub(crate) fn new(name: String, first_usr: Arc<User>) -> Room{
+    pub(crate) fn new(name: String, first_usr: Arc<User>) -> Room {
         let users = DashMap::new();
         let guests = DashMap::new();
         users.insert(first_usr.name.to_lowercase(), first_usr);
         Room {
-            name, users, guests
+            name,
+            users,
+            guests,
         }
     }
-    
-    pub(crate) async fn send_msg(&self, username: String, text: String, tx_user_sender: Sender<Vec<u8>>) {
+
+    pub(crate) async fn send_msg(
+        &self,
+        username: String,
+        text: String,
+        tx_user_sender: Sender<Vec<u8>>,
+    ) {
         let username_lowe = &username.to_lowercase();
         if !self.users.contains_key(username_lowe) {
             let msg = generate_not_joined_response(&self.name);
             let _ = tx_user_sender.send(msg).await;
-            return ;
+            return;
         }
         let users = &self.users;
         let usr_sender = username_lowe.to_string();
@@ -37,21 +51,23 @@ impl Room {
         }
         let message = server_mesagges::generate_room_text_from(&username, &self.name, &text);
         for user in senders {
-        let _ = user.send(message.clone()).await;
-        }  
+            let _ = user.send(message.clone()).await;
+        }
     }
-    /// Invita a los usuarios de una lista a un cuarto, si los usuarios ya están invitados o 
+    /// Invita a los usuarios de una lista a un cuarto, si los usuarios ya están invitados o
     /// en el cuarto no hace nada con ellos.
     /// Si el usuario que invita a el cuarto no está en el la lista de usuarios del cuarto,
     /// no hace nada.
     pub(crate) async fn process_invitation(&self, users: Vec<Arc<User>>, usr_sender: &str) {
         if !self.users.contains_key(&usr_sender.to_lowercase()) {
-            return ;
+            return;
         }
         let mut invite_users = Vec::new();
         for user in users {
             let username_lower = user.name.to_lowercase();
-            if (self.guests.contains_key(&username_lower)) || (self.users.contains_key(&username_lower)) {
+            if (self.guests.contains_key(&username_lower))
+                || (self.users.contains_key(&username_lower))
+            {
                 continue;
             }
             invite_users.push(user);
@@ -62,9 +78,9 @@ impl Room {
         }
         for user in invite_users {
             let mut invitation_room_keys_guard = user.invitations_room_keys.lock().await;
-           (*invitation_room_keys_guard).push(self.name.to_lowercase()); 
-           drop(invitation_room_keys_guard);
-           self.guests.insert(user.name.to_lowercase(), user);
+            (*invitation_room_keys_guard).push(self.name.to_lowercase());
+            drop(invitation_room_keys_guard);
+            self.guests.insert(user.name.to_lowercase(), user);
         }
         let msg = generate_invitation_msg(usr_sender, &self.name);
         for tx in senders {
@@ -73,9 +89,13 @@ impl Room {
     }
 
     /// Esta función toma un usuario que aceptó una invitación y lo agrega el cuarto en caso
-    /// de estar invitado al mismo, también envía el mensaje de que un nuevo usuario se ha unido al grupo, 
+    /// de estar invitado al mismo, también envía el mensaje de que un nuevo usuario se ha unido al grupo,
     /// en caso de no estar invitado envía el mensaje correspondiente según el protocolo.
-    pub(crate) async fn accept_invitation(&self, usr_who_accepted: &str, tx_user_who_accepted: Sender<Vec<u8>>) {
+    pub(crate) async fn accept_invitation(
+        &self,
+        usr_who_accepted: &str,
+        tx_user_who_accepted: Sender<Vec<u8>>,
+    ) {
         let username_to_lower = usr_who_accepted.to_lowercase();
         if let Some((name, user)) = self.guests.remove(&username_to_lower) {
             let msg = generate_new_room_user_msg(&self.name, usr_who_accepted);
@@ -84,7 +104,10 @@ impl Room {
                 senders.push(kv.tx.clone());
             }
             let mut invitations_guard = user.invitations_room_keys.lock().await;
-            match (*invitations_guard).iter().rposition(|key| key == &self.name.to_lowercase()) {
+            match (*invitations_guard)
+                .iter()
+                .rposition(|key| key == &self.name.to_lowercase())
+            {
                 Some(index) => {
                     (*invitations_guard).remove(index);
                 }
@@ -99,8 +122,7 @@ impl Room {
             }
             let user_msg = server_mesagges::success_join_room_response(&self.name);
             let _ = tx_user_who_accepted.send(user_msg).await;
-        }
-        else {
+        } else {
             let msg = generate_not_invitated_msg(&self.name);
             let _ = tx_user_who_accepted.send(msg).await;
         }
@@ -128,8 +150,12 @@ impl Room {
     }
     /// Elimina a un usuario del cuarto si estaba en el cuarto, en otro caso envía el mensaje correspondiente
     /// según el protocolo, esta función devuelve el número de usuarios en el cuarto después de eliminar al usuario.
-    pub(crate) async fn remove_user(&self, tx_user_to_remove: Sender<Vec<u8>>, user_to_remove: String) -> usize {
-        let username_lower = user_to_remove.to_lowercase(); 
+    pub(crate) async fn remove_user(
+        &self,
+        tx_user_to_remove: Sender<Vec<u8>>,
+        user_to_remove: String,
+    ) -> usize {
+        let username_lower = user_to_remove.to_lowercase();
         if self.users.contains_key(&username_lower) {
             self.users.remove(&username_lower);
             let msg = generate_user_leaved_room(&user_to_remove, &self.name);
@@ -142,8 +168,7 @@ impl Room {
                 let _ = tx.send(msg.clone()).await;
             }
             self.users.len()
-        }
-        else {
+        } else {
             let msg = server_mesagges::generate_not_joined_leave_room_response(&self.name);
             let _ = tx_user_to_remove.send(msg).await;
             self.users.len()
@@ -152,11 +177,10 @@ impl Room {
 
     pub(crate) fn remove_invitation(&self, username: &str) {
         self.guests.remove(&username.to_lowercase());
-        
     }
 
     pub(crate) async fn remove_disconected_user(&self, user_to_remove: &str) -> usize {
-        let username_lower = user_to_remove.to_lowercase(); 
+        let username_lower = user_to_remove.to_lowercase();
         if self.users.contains_key(&username_lower) {
             self.users.remove(&username_lower);
             let msg = generate_user_leaved_room(&user_to_remove, &self.name);
@@ -169,8 +193,7 @@ impl Room {
                 let _ = tx.send(msg.clone()).await;
             }
             self.users.len()
-        }
-        else {
+        } else {
             self.users.len()
         }
     }

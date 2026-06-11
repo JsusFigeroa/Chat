@@ -15,58 +15,34 @@ pub enum TypeSendMessages {
         extra: Option<String>,
     },
     #[serde(rename = "NEW_USER")]
-    NewUser {
-        username: String
-    },
+    NewUser { username: String },
     #[serde(rename = "NEW_STATUS")]
-    NewStatus {
-        username: String,
-        status: State
-    },
+    NewStatus { username: String, status: State },
     #[serde(rename = "USER_LIST")]
-    UserList {
-        users: HashMap<String, State>
-    },
+    UserList { users: HashMap<String, State> },
     #[serde(rename = "TEXT_FROM")]
-    TextFrom {
-        username: String,
-        text: String,
-    },
+    TextFrom { username: String, text: String },
     #[serde(rename = "PUBLIC_TEXT_FROM")]
-    PublicTextFrom {
-        username: String,
-        text: String
-    },
+    PublicTextFrom { username: String, text: String },
     #[serde(rename = "INVITATION")]
-    Invitation {
-        username: String,
-        roomname: String,
-    },
+    Invitation { username: String, roomname: String },
     #[serde(rename = "JOINED_ROOM")]
-    JoinedRoom {
-        roomname: String,
-        username: String
-    },
+    JoinedRoom { roomname: String, username: String },
     #[serde(rename = "ROOM_USER_LIST")]
     RoomUserList {
         roomname: String,
-        users: HashMap<String, State>
+        users: HashMap<String, State>,
     },
     #[serde(rename = "ROOM_TEXT_FROM")]
     RoomTextFrom {
         roomname: String,
         username: String,
-        text: String
+        text: String,
     },
     #[serde(rename = "LEFT_ROOM")]
-    LeftRoom {
-        roomname: String,
-        username: String
-    },
+    LeftRoom { roomname: String, username: String },
     #[serde(rename = "DISCONNECTED")]
-    Disconnected {
-        username: String
-    }
+    Disconnected { username: String },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -88,7 +64,7 @@ pub enum Operations {
     #[serde(rename = "NEW_ROOM")]
     NewRoom,
     #[serde(rename = "INVALID")]
-    Invalid
+    Invalid,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -110,6 +86,5 @@ pub enum Result {
     #[serde(rename = "NOT_IDENTIFIED")]
     NotIdentified,
     #[serde(rename = "INVALID")]
-    Invalid
+    Invalid,
 }
-
