@@ -1,0 +1,36 @@
+name: Rust CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-lastest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Configurar Caché de Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cargo-cache"
+
+      - name: Verificar formato
+        uses: cargo fmt --check
+
+      - name: Analizar código
+        uses: cargo clippy -- -D warnings
+
+      - name: Ejecutar test del server
+        uses: cargo test -p servidor
