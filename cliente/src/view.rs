@@ -1,17 +1,19 @@
+use serde::{self, Deserialize, Serialize};
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddrV4};
 use std::io::{self};
-use tokio::io::{BufReader, AsyncBufReadExt, stdin};
+use std::net::{Ipv4Addr, SocketAddrV4};
+use tokio::io::{AsyncBufReadExt, BufReader, stdin};
 use tokio::sync::mpsc::Sender;
-use serde::{self,Deserialize,Serialize};
 
-pub(crate)  fn get_addr() -> SocketAddrV4 {
+pub(crate) fn get_addr() -> SocketAddrV4 {
     println!("Ingrese la dirección y puerto en que se conectará con el siguiente formato:");
     println!("127.0.0.1.4444");
     println!("La entrada anterior conecta al servidor en la dirección 127.0.0.1 y el puerto 4444");
     println!("En caso de entrada invalida se establecerá por defecto en localhost y puerto 4444");
     let mut args = String::new();
-    io::stdin().read_line(&mut args).expect("No fue posible obtener la dirección");
+    io::stdin()
+        .read_line(&mut args)
+        .expect("No fue posible obtener la dirección");
     let addr = aux_get_addr(args.trim()).unwrap_or_else(|_| {
         let ip = Ipv4Addr::new(127, 0, 0, 1);
         let port = 4444;
@@ -21,54 +23,57 @@ pub(crate)  fn get_addr() -> SocketAddrV4 {
     addr
 }
 
-pub(crate)  fn get_username() -> Result<String, ()> {
+pub(crate) fn get_username() -> Result<String, ()> {
     println!("Escribe tu nombre de usuario, recuerda que debe ser de máximo 8 caracteres");
     let mut username = String::new();
-    io::stdin().read_line(&mut username).expect("Error el obtener nombre de usuario");
+    io::stdin()
+        .read_line(&mut username)
+        .expect("Error el obtener nombre de usuario");
     if username.trim() == "" {
         println!("El usuario no puede ser vacío.");
         username.clear();
-        io::stdin().read_line(&mut username).expect("Error el obtener nombre de usuario");
+        io::stdin()
+            .read_line(&mut username)
+            .expect("Error el obtener nombre de usuario");
         if username.trim() == "" {
-            return Err(())
+            return Err(());
         }
         if username.len() > 8 {
-            return Err(())
-        }
-        else {
-            return Ok(String::from(username.trim()))
+            return Err(());
+        } else {
+            return Ok(String::from(username.trim()));
         }
     }
     if username.len() > 8 {
         println!("El nombre de usuario debe ser menor a 8 caracteres");
         println!("Escribe tu nombre de usuario");
         username.clear();
-        io::stdin().read_line(&mut username).expect("Error el obtener nombre de usuario");
+        io::stdin()
+            .read_line(&mut username)
+            .expect("Error el obtener nombre de usuario");
         if username.len() > 8 {
             Err(())
-        }
-        else {
+        } else {
             Ok(String::from(username.trim()))
         }
-    }
-    else {
+    } else {
         Ok(String::from(username.trim()))
     }
 }
 
-pub(crate)  fn retry_get_username(username: &str) -> String {
+pub(crate) fn retry_get_username(username: &str) -> String {
     println!("El nombre de usuario {} ya está en uso", username);
     get_username().expect("El nombre de usuario no es válido")
 }
 
-pub(crate)  fn print_succes_identify(username: String) {
+pub(crate) fn print_succes_identify(username: String) {
     println!("Entraste al chat con el nombre {}", username);
 }
 
 fn aux_get_addr(args: &str) -> Result<SocketAddrV4, ()> {
     let arg: Vec<&str> = args.split('.').collect();
     if arg.len() != 5 {
-        return Err(())
+        return Err(());
     }
     let a: u8 = arg[0].parse().map_err(|_| ())?;
     let b: u8 = arg[1].parse().map_err(|_| ())?;
@@ -78,24 +83,27 @@ fn aux_get_addr(args: &str) -> Result<SocketAddrV4, ()> {
     let ip = Ipv4Addr::new(a, b, c, d);
     let addr = SocketAddrV4::new(ip, port);
     Ok(addr)
-
 }
 
 pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
-
     let stdin = stdin();
     let mut reader = BufReader::new(stdin);
     let mut line = String::new();
 
-    reader.read_line(&mut line).await.expect("Error al leer de la entrada estándar");
-    
+    reader
+        .read_line(&mut line)
+        .await
+        .expect("Error al leer de la entrada estándar");
+
     let line = line.trim();
-    if line.is_empty() { return; }
+    if line.is_empty() {
+        return;
+    }
 
     if line.starts_with('/') {
         // Se parte la entrada por espacios
         let mut args: Vec<&str> = line.split_whitespace().collect();
-        
+
         match args[0] {
             "/status" => {
                 if args.len() < 2 {
@@ -103,10 +111,30 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                     return;
                 }
                 match args[1] {
-                    "away" => { let _ = tx.send(Ok(Action::Status { status: Status::Away })).await; }
-                    "busy" => { let _ = tx.send(Ok(Action::Status { status: Status::Busy })).await; }
-                    "active" => { let _ = tx.send(Ok(Action::Status { status: Status::Active })).await; }
-                    _ => { let _ = tx.send(Err(())).await; }
+                    "away" => {
+                        let _ = tx
+                            .send(Ok(Action::Status {
+                                status: Status::Away,
+                            }))
+                            .await;
+                    }
+                    "busy" => {
+                        let _ = tx
+                            .send(Ok(Action::Status {
+                                status: Status::Busy,
+                            }))
+                            .await;
+                    }
+                    "active" => {
+                        let _ = tx
+                            .send(Ok(Action::Status {
+                                status: Status::Active,
+                            }))
+                            .await;
+                    }
+                    _ => {
+                        let _ = tx.send(Err(())).await;
+                    }
                 }
                 return;
             }
@@ -137,8 +165,12 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                     let _ = tx.send(Err(())).await;
                     return;
                 }
-                let _ = tx.send(Ok(Action::NewRoom { roomname: args[1].to_string() })).await;
-                return ;
+                let _ = tx
+                    .send(Ok(Action::NewRoom {
+                        roomname: args[1].to_string(),
+                    }))
+                    .await;
+                return;
             }
             "/invite" => {
                 if args.len() < 3 {
@@ -146,9 +178,18 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                     return;
                 }
                 let roomname = args[1].to_string();
-                let usernames: Vec<String> = args.split_off(2).into_iter().map(|slc| slc.to_string()).collect();
-                let _ = tx.send(Ok(Action::Invite { roomname, usernames })).await;
-                return ;
+                let usernames: Vec<String> = args
+                    .split_off(2)
+                    .into_iter()
+                    .map(|slc| slc.to_string())
+                    .collect();
+                let _ = tx
+                    .send(Ok(Action::Invite {
+                        roomname,
+                        usernames,
+                    }))
+                    .await;
+                return;
             }
             "/joinRoom" => {
                 if args.len() < 2 {
@@ -157,7 +198,7 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                 }
                 let roomname = args[1].to_string();
                 let _ = tx.send(Ok(Action::JoinRoom { roomname })).await;
-                return ;
+                return;
             }
             "/roomUsers" => {
                 if args.len() < 2 {
@@ -166,7 +207,7 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                 }
                 let roomname = args[1].to_string();
                 let _ = tx.send(Ok(Action::RoomUsers { roomname })).await;
-                return ;
+                return;
             }
             "/roomText" => {
                 if args.len() < 3 {
@@ -176,7 +217,7 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                 let roomname = args[1].to_string();
                 let text = args.split_off(2).join(" ");
                 let _ = tx.send(Ok(Action::RoomText { roomname, text })).await;
-                return ;
+                return;
             }
             "/leaveRoom" => {
                 if args.len() < 2 {
@@ -185,7 +226,7 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
                 }
                 let roomname = args[1].to_string();
                 let _ = tx.send(Ok(Action::LeaveRoom { roomname })).await;
-                return ;
+                return;
             }
             _ => {
                 let _ = tx.send(Err(())).await;
@@ -194,7 +235,11 @@ pub(crate) async fn get_usr_entry(tx: Sender<Result<Action, ()>>) {
         }
     }
 
-    let _ = tx.send(Ok(Action::PublicText { text: String::from(line) })).await;
+    let _ = tx
+        .send(Ok(Action::PublicText {
+            text: String::from(line),
+        }))
+        .await;
 }
 
 pub(crate) fn print_not_valid_command() {
@@ -202,7 +247,7 @@ pub(crate) fn print_not_valid_command() {
     print_help_msg();
 }
 
-pub(crate)  fn print_help_msg() {
+pub(crate) fn print_help_msg() {
     println!("Mensaje de ayuda");
     println!("Para cambiar de status use /status {{status}} ");
     println!("Los status disponibles son away, busy, active");
@@ -210,7 +255,9 @@ pub(crate)  fn print_help_msg() {
     println!("Para mandar un mensaje privado use /privateText {{nombre_del_usuario}} {{mensaje}}");
     println!("Para desconectarse use /disconnect");
     println!("Para crear un nuevo cuarto usar /newRoom {{nombre_del_cuarto}}");
-    println!("Para invitar a un usuario a un cuarto use /invite {{nombre_del_cuarto}} {{nombre_del_usuario}}");
+    println!(
+        "Para invitar a un usuario a un cuarto use /invite {{nombre_del_cuarto}} {{nombre_del_usuario}}"
+    );
     println!("Para unirse a un cuarto use /joinRoom {{nombre_del_cuarto}}");
     println!("Para obtener la lista de usuarios de un cuarto use /roomUsers {{nombre_del_cuarto}}");
     println!("Para mandar mensaje a un grupo use /roomText {{nombre_del_cuarto}} {{mensaje}}");
@@ -223,9 +270,15 @@ pub(crate) fn user_disconnected(username: String) {
 
 pub(crate) fn print_new_status(username: String, status: Status) {
     match status {
-        Status::Active => {println!("El estado de {} ahora es Activo", username)}
-        Status::Away => {println!("El estado de {} ahora es Inactivo", username)}
-        Status::Busy => {println!("El estado de {} ahora es Ocupado", username)}
+        Status::Active => {
+            println!("El estado de {} ahora es Activo", username)
+        }
+        Status::Away => {
+            println!("El estado de {} ahora es Inactivo", username)
+        }
+        Status::Busy => {
+            println!("El estado de {} ahora es Ocupado", username)
+        }
     }
 }
 
@@ -240,7 +293,7 @@ pub(crate) fn print_users(map: HashMap<String, Status>) {
     }
 }
 
-pub(crate) fn print_private_text(username: String, text: String){
+pub(crate) fn print_private_text(username: String, text: String) {
     println!("Mensaje privado de {}: {}", username, text);
 }
 
@@ -250,10 +303,13 @@ pub(crate) fn print_invalid_response() {
 }
 
 pub(crate) fn print_text_response_no_such_usr(username: String) {
-    println!("El usuario {} al que se intentó enviar mensaje privado no existe.", username);
-} 
+    println!(
+        "El usuario {} al que se intentó enviar mensaje privado no existe.",
+        username
+    );
+}
 
-pub(crate) fn print_new_user_connected(username: String){
+pub(crate) fn print_new_user_connected(username: String) {
     println!("{} se ha conectado al chat", username)
 }
 pub(crate) fn disconnected_by_server() {
@@ -265,7 +321,10 @@ pub(crate) fn print_server_close_conection() {
 }
 
 pub(crate) fn print_invitation_to_room(username: &str, roomname: &str) {
-    println!("El usuario {} te ha invitado a el cuarto {}", username, roomname);
+    println!(
+        "El usuario {} te ha invitado a el cuarto {}",
+        username, roomname
+    );
 }
 
 pub(crate) fn print_user_joined_room(username: &str, roomname: &str) {
@@ -292,15 +351,24 @@ pub(crate) fn print_success_new_room_created(roomname: &str) {
 }
 
 pub(crate) fn print_room_already_exist_result(roomname: &str) {
-    println!("El cuarto con nombre {} ya existe, intenta con otro nombre", roomname);
+    println!(
+        "El cuarto con nombre {} ya existe, intenta con otro nombre",
+        roomname
+    );
 }
 
 pub(crate) fn print_no_such_room_to_invite(roomname: &str) {
-    println!("No existe el cuarto {} e intentase invitar a un usuaro", roomname);
+    println!(
+        "No existe el cuarto {} e intentase invitar a un usuaro",
+        roomname
+    );
 }
 
 pub(crate) fn print_no_such_user_to_invite(username: &str) {
-    println!("No existe el usuario {} y lo intentaste invitar a un cuarto", username);
+    println!(
+        "No existe el usuario {} y lo intentaste invitar a un cuarto",
+        username
+    );
 }
 
 pub(crate) fn print_success_join_room(roomname: &str) {
@@ -316,7 +384,10 @@ pub(crate) fn print_not_invited_to_room(roomname: &str) {
 }
 
 pub(crate) fn print_no_such_room_to_get_users(roomname: &str) {
-    println!("El cuarto {} del cual solicitaste la lista de usuarios no existe", roomname);
+    println!(
+        "El cuarto {} del cual solicitaste la lista de usuarios no existe",
+        roomname
+    );
 }
 
 pub(crate) fn print_not_joined_room_to_get_users(roomname: &str) {
@@ -324,11 +395,17 @@ pub(crate) fn print_not_joined_room_to_get_users(roomname: &str) {
 }
 
 pub(crate) fn print_no_such_room_to_send_room_text(roomname: &str) {
-    println!("El cuarto {} al que intentaste enviar mensaje no existe", roomname);
+    println!(
+        "El cuarto {} al que intentaste enviar mensaje no existe",
+        roomname
+    );
 }
 
 pub(crate) fn print_not_joined_to_send_room_text(roomname: &str) {
-    println!("No eres usuario del cuarto {}, para enviar mensaje debes unirte", roomname);
+    println!(
+        "No eres usuario del cuarto {}, para enviar mensaje debes unirte",
+        roomname
+    );
 }
 
 pub(crate) fn print_no_such_room_to_leave(roomname: &str) {
@@ -336,35 +413,38 @@ pub(crate) fn print_no_such_room_to_leave(roomname: &str) {
 }
 
 pub(crate) fn print_not_joined_to_leave(roomname: &str) {
-    println!("No eres usuario del cuarto {} asi que no puedes salir de el", roomname);
+    println!(
+        "No eres usuario del cuarto {} asi que no puedes salir de el",
+        roomname
+    );
 }
 
 pub(crate) enum Action {
     Status {
-        status: Status
+        status: Status,
     },
     Users,
     PrivateText {
         username: String,
-        text: String
+        text: String,
     },
     Disconnect,
     PublicText {
-        text: String
+        text: String,
     },
     Help,
     NewRoom {
-        roomname: String
+        roomname: String,
     },
     Invite {
         roomname: String,
-        usernames: Vec<String>
+        usernames: Vec<String>,
     },
     JoinRoom {
-        roomname: String
+        roomname: String,
     },
     RoomUsers {
-        roomname: String
+        roomname: String,
     },
     RoomText {
         roomname: String,
@@ -372,7 +452,7 @@ pub(crate) enum Action {
     },
     LeaveRoom {
         roomname: String,
-    }
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -380,5 +460,5 @@ pub(crate) enum Action {
 pub(crate) enum Status {
     Away,
     Busy,
-    Active
+    Active,
 }

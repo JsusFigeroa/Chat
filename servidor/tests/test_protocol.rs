@@ -169,4 +169,3 @@ async fn test_change_status() {
     let expected_msg = serde_json::to_value(expected_type_message).unwrap();
     assert_eq!(recived_json, expected_msg);
 }
-

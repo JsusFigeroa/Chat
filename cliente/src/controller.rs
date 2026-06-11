@@ -1,34 +1,38 @@
-use tokio::sync::mpsc::{Sender, Receiver};
-use tokio::net::tcp::OwnedWriteHalf;
-use tokio::net::{TcpStream};
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
-use crate::controller::controller_aux::{generate_identify};
+use crate::controller::controller_aux::generate_identify;
+use crate::type_receive_message::Result as Resultado;
 use crate::type_receive_message::{OperationType, TypeReciveMesagges};
 use crate::type_send_message::TypeSendMessage;
 use crate::view::{self, Action, get_username, retry_get_username};
-use crate::type_receive_message::Result as Resultado;
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::net::TcpStream;
+use tokio::net::tcp::OwnedWriteHalf;
 use tokio::sync::mpsc::channel;
+use tokio::sync::mpsc::{Receiver, Sender};
 mod controller_aux;
-
 
 /// Función que establece la conexión con un servidor y hace la identificación correspondiente, por último
 /// si todo lo anterior resulto exitoso, manda a llamar una función que ejecuta el resto de funcionalidades
 /// del cliente.
-pub async  fn start() {
+pub async fn start() {
     let addr = view::get_addr();
-    let socket = TcpStream::connect(addr).await.expect("Error al conectarse al servidor");
+    let socket = TcpStream::connect(addr)
+        .await
+        .expect("Error al conectarse al servidor");
     let (sok_reader, mut sok_writer) = socket.into_split();
     let mut username = get_username().expect("El nombre de usuario ingresado es inválido");
     send_identifier(username, &mut sok_writer).await;
     let mut buf_reader = BufReader::new(sok_reader);
     match get_identify_response(&mut buf_reader).await {
-
-        Ok(a) => {view::print_succes_identify(a);}
+        Ok(a) => {
+            view::print_succes_identify(a);
+        }
 
         Err(name) => {
             username = retry_get_username(&name);
             send_identifier(username, &mut sok_writer).await;
-            username = get_identify_response(&mut buf_reader).await.unwrap_or_else(|_| {panic!("El nombre elegido no es válido")} );
+            username = get_identify_response(&mut buf_reader)
+                .await
+                .unwrap_or_else(|_| panic!("El nombre elegido no es válido"));
             view::print_succes_identify(username);
         }
     }
@@ -38,21 +42,20 @@ pub async  fn start() {
     //Hacer la función que enviará mensajes al servidor
     //Hacer transmisor para enviar mensajes al servidor
     //Hacer ciclo para obtener entrada del usuario
-
-
 }
 
-/// Manda a llamar las funciones respectivas para recibir mensajes del servidor y entrada del usuario, a su vez 
+/// Manda a llamar las funciones respectivas para recibir mensajes del servidor y entrada del usuario, a su vez
 /// llama a las funciones que procesan estas solicitudes.
 // La función que recibe mensajes del server
-async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Send + 'static>(reader:  BufReader<T>, writer: R) {
+async fn work<T: AsyncRead + Unpin + Send + 'static, R: AsyncWrite + Unpin + Send + 'static>(
+    reader: BufReader<T>,
+    writer: R,
+) {
     let (msg_server_tx, mut msg_server_rx) = channel::<String>(100);
     let (tx_for_msg_usr_proccesor, rx_for_msg_sender) = channel::<Vec<u8>>(100);
     let (tx_for_user_entry, mut rx_for_user_entry) = channel::<Result<Action, ()>>(100);
     //let _tx_for_disconect = tx.clone();
-    tokio::spawn(async move {
-        send_msg_to_server(writer, rx_for_msg_sender).await
-    });
+    tokio::spawn(async move { send_msg_to_server(writer, rx_for_msg_sender).await });
     tokio::spawn(async move {
         get_server_msg(msg_server_tx, reader).await;
     });
@@ -103,19 +106,18 @@ async fn get_server_msg<R: AsyncRead + Unpin>(tx: Sender<String>, mut reader: Bu
         let mut line = String::new();
         let Ok(_) = reader.read_line(&mut line).await else {
             view::print_server_close_conection();
-            return ;
+            return;
         };
         let trim_line = line.trim();
         let clean_line = trim_line.trim_matches(|b| b == '\0');
         let _ = tx.send(clean_line.to_string()).await;
         line.clear();
     }
-
 }
 
 async fn procces_server_msg(message: String) {
     let Ok(msg) = serde_json::from_str(&message) else {
-        return ;
+        return;
     };
     procces_server_msg_aux(msg);
 }
@@ -131,75 +133,135 @@ fn procces_server_msg_aux(message: TypeReciveMesagges) {
         TypeReciveMesagges::PublicTextFrom { username, text } => {
             view::print_public_text(username, text);
         }
-        TypeReciveMesagges::Response { operation: OperationType::NewRoom, result: Resultado::Success, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::NewRoom,
+            result: Resultado::Success,
+            extra,
+        } => {
             if let Some(extra) = extra {
                 view::print_success_new_room_created(&extra);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::NewRoom, result: Resultado::RoomAlreadyExists, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::NewRoom,
+            result: Resultado::RoomAlreadyExists,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_room_already_exist_result(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::Invite, result: Resultado::NoSuchRoom, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::Invite,
+            result: Resultado::NoSuchRoom,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_no_such_room_to_invite(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::Invite, result: Resultado::NoSuchUser, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::Invite,
+            result: Resultado::NoSuchUser,
+            extra,
+        } => {
             if let Some(username) = extra {
                 view::print_no_such_user_to_invite(&username);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::JoinRoom, result: Resultado::Success, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::JoinRoom,
+            result: Resultado::Success,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_success_join_room(&roomname);
             };
         }
-        TypeReciveMesagges::Response { operation: OperationType::JoinRoom, result: Resultado::NoSuchRoom, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::JoinRoom,
+            result: Resultado::NoSuchRoom,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_no_such_room_to_join(&roomname);
             };
         }
-        TypeReciveMesagges::Response { operation: OperationType::JoinRoom, result: Resultado::NotInvited, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::JoinRoom,
+            result: Resultado::NotInvited,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_not_invited_to_room(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::RoomUsers, result: Resultado::NoSuchRoom, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::RoomUsers,
+            result: Resultado::NoSuchRoom,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_no_such_room_to_get_users(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::RoomUsers, result: Resultado::NotJoined, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::RoomUsers,
+            result: Resultado::NotJoined,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_not_joined_room_to_get_users(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::RoomText, result: Resultado::NoSuchRoom, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::RoomText,
+            result: Resultado::NoSuchRoom,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_no_such_room_to_send_room_text(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::RoomText, result: Resultado::NotJoined, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::RoomText,
+            result: Resultado::NotJoined,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_not_joined_to_send_room_text(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::LeaveRoom, result: Resultado::NoSuchRoom, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::LeaveRoom,
+            result: Resultado::NoSuchRoom,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_no_such_room_to_leave(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::LeaveRoom, result: Resultado::NotJoined, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::LeaveRoom,
+            result: Resultado::NotJoined,
+            extra,
+        } => {
             if let Some(roomname) = extra {
                 view::print_not_joined_to_leave(&roomname);
             }
         }
-        TypeReciveMesagges::Response { operation: OperationType::Invalid, result: Resultado::Invalid, extra: _ } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::Invalid,
+            result: Resultado::Invalid,
+            extra: _,
+        } => {
             view::print_invalid_response();
         }
-        TypeReciveMesagges::Response { operation: OperationType::Text, result: Resultado::NoSuchUser, extra } => {
+        TypeReciveMesagges::Response {
+            operation: OperationType::Text,
+            result: Resultado::NoSuchUser,
+            extra,
+        } => {
             if let Some(extra) = extra {
                 view::print_text_response_no_such_usr(extra);
             };
@@ -222,13 +284,19 @@ fn procces_server_msg_aux(message: TypeReciveMesagges) {
         TypeReciveMesagges::LeftRoom { roomname, username } => {
             view::print_user_leaved_room(&username, &roomname);
         }
-        TypeReciveMesagges::RoomTextFrom { roomname, username, text } => {
+        TypeReciveMesagges::RoomTextFrom {
+            roomname,
+            username,
+            text,
+        } => {
             view::print_room_text_from(&username, &roomname, &text);
         }
         TypeReciveMesagges::RoomUserList { roomname, users } => {
             view::print_room_users(&roomname, users);
         }
-        _ => {panic!("El mensaje recibido no coincide con el protocolo")}
+        _ => {
+            panic!("El mensaje recibido no coincide con el protocolo")
+        }
     }
 }
 
@@ -238,7 +306,7 @@ async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
             let disconect = TypeSendMessage::Disconect;
             let msg = serde_json::to_vec(&disconect).unwrap();
             let Ok(_) = tx.send(msg).await else {
-                return ;
+                return;
             };
         }
         Action::Help => {
@@ -248,95 +316,110 @@ async fn procces_user_msg(action: Action, tx: Sender<Vec<u8>>) {
             let private_text = TypeSendMessage::Text { username, text };
             let msg = serde_json::to_vec(&private_text).unwrap();
             let Ok(_) = tx.send(msg).await else {
-                return ;
+                return;
             };
         }
         Action::Status { status } => {
             let status = TypeSendMessage::Status { status };
             let msg = serde_json::to_vec(&status).unwrap();
             let Ok(_) = tx.send(msg).await else {
-                return ;
+                return;
             };
         }
         Action::Users => {
             let users = TypeSendMessage::Users;
             let msg = serde_json::to_vec(&users).unwrap();
             let Ok(_) = tx.send(msg).await else {
-                return ;
+                return;
             };
         }
         Action::PublicText { text } => {
             let text = TypeSendMessage::PublicText { text };
             let msg = serde_json::to_vec(&text).unwrap();
             let Ok(_) = tx.send(msg).await else {
-                return ;
+                return;
             };
         }
         Action::NewRoom { roomname } => {
             let message = TypeSendMessage::NewRoom { roomname };
             let msg = serde_json::to_vec(&message).unwrap();
             let _ = tx.send(msg).await;
-            return ;
+            return;
         }
-        Action::Invite { roomname, usernames } => {
-            let message = TypeSendMessage::Invite { roomname, usernames };
+        Action::Invite {
+            roomname,
+            usernames,
+        } => {
+            let message = TypeSendMessage::Invite {
+                roomname,
+                usernames,
+            };
             let msg = serde_json::to_vec(&message).unwrap();
             let _ = tx.send(msg).await;
-            return ;
+            return;
         }
         Action::JoinRoom { roomname } => {
             let message = TypeSendMessage::JoinRoom { roomname };
             let msg = serde_json::to_vec(&message).unwrap();
             let _ = tx.send(msg).await;
-            return ;
+            return;
         }
         Action::RoomText { roomname, text } => {
             let message = TypeSendMessage::RoomText { roomname, text };
             let msg = serde_json::to_vec(&message).unwrap();
             let _ = tx.send(msg).await;
-            return ;
+            return;
         }
         Action::LeaveRoom { roomname } => {
             let message = TypeSendMessage::LeaveRoom { roomname };
             let msg = serde_json::to_vec(&message).unwrap();
             let _ = tx.send(msg).await;
-            return ;
+            return;
         }
         Action::RoomUsers { roomname } => {
             let message = TypeSendMessage::RoomUsers { roomname };
             let msg = serde_json::to_vec(&message).unwrap();
             let _ = tx.send(msg).await;
-            return ;
+            return;
         }
-
     }
 }
 
-async fn send_msg_to_server<T: AsyncWrite + Unpin>(mut writer: T, mut rx: Receiver<Vec<u8>>){
+async fn send_msg_to_server<T: AsyncWrite + Unpin>(mut writer: T, mut rx: Receiver<Vec<u8>>) {
     while let Some(mut msg) = rx.recv().await {
         msg.push(b'\n');
         msg.push(0);
         let Ok(_) = writer.write_all(&msg).await else {
-            return ;
+            return;
         };
     }
 }
-
 
 async fn send_identifier(name: String, socket: &mut OwnedWriteHalf) {
     let id_message = generate_identify(name);
     socket.write_all(&id_message).await.unwrap_or_default();
 }
 
-async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) -> Result<String, String> {
+async fn get_identify_response<T: AsyncRead + Unpin>(
+    socket: &mut BufReader<T>,
+) -> Result<String, String> {
     let mut response = String::new();
-    let bytes = socket.read_line(&mut response).await.expect("No fue posible leer datos del socket");
+    let bytes = socket
+        .read_line(&mut response)
+        .await
+        .expect("No fue posible leer datos del socket");
     if bytes == 0 {
         panic!("La conexión se cerró")
     }
-    println!("{}" , response);
-    match serde_json::from_str::<TypeReciveMesagges>(response.trim()).expect("El mensaje recibido no era del tipo de mensajes que recibe el cliente") {
-        TypeReciveMesagges::Response { operation, result, extra } => {
+    println!("{}", response);
+    match serde_json::from_str::<TypeReciveMesagges>(response.trim())
+        .expect("El mensaje recibido no era del tipo de mensajes que recibe el cliente")
+    {
+        TypeReciveMesagges::Response {
+            operation,
+            result,
+            extra,
+        } => {
             if let OperationType::Identify = operation {
                 if let Resultado::Success = result {
                     let Some(username) = extra else {
@@ -349,17 +432,13 @@ async fn get_identify_response<T: AsyncRead + Unpin>(socket: &mut BufReader<T>) 
                         panic!("El mensaje no es acorde al protocolo")
                     };
                     return Err(username);
-                }
-                else {
+                } else {
                     panic!("El mensaje no es acorde al protocolo");
                 }
-            }
-            else {
+            } else {
                 panic!("La espuesta no es acorde al protocolo")
             }
         }
-        _ => panic!("La respuesta no es la esperada según el protocolo")
-        
+        _ => panic!("La respuesta no es la esperada según el protocolo"),
     }
-
 }

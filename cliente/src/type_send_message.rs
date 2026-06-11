@@ -4,53 +4,32 @@ use crate::view::Status;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
-pub(crate)  enum TypeSendMessage {
+pub(crate) enum TypeSendMessage {
     #[serde(rename = "IDENTIFY")]
-    Identify {
-        username: String,
-    },
+    Identify { username: String },
     #[serde(rename = "STATUS")]
-    Status {
-        status: Status
-    },
+    Status { status: Status },
     #[serde(rename = "USERS")]
     Users,
     #[serde(rename = "TEXT")]
-    Text {
-        username: String,
-        text: String,
-    },
+    Text { username: String, text: String },
     #[serde(rename = "PUBLIC_TEXT")]
-    PublicText {
-        text: String,
-    },
+    PublicText { text: String },
     #[serde(rename = "NEW_ROOM")]
-    NewRoom {
-        roomname: String
-    },
+    NewRoom { roomname: String },
     #[serde(rename = "INVITE")]
     Invite {
         roomname: String,
-        usernames: Vec<String>
+        usernames: Vec<String>,
     },
     #[serde(rename = "JOIN_ROOM")]
-    JoinRoom {
-        roomname: String
-    },
+    JoinRoom { roomname: String },
     #[serde(rename = "ROOM_USERS")]
-    RoomUsers {
-        roomname: String
-    },
+    RoomUsers { roomname: String },
     #[serde(rename = "ROOM_TEXT")]
-    RoomText {
-        roomname: String,
-        text: String
-    },
+    RoomText { roomname: String, text: String },
     #[serde(rename = "LEAVE_ROOM")]
-    LeaveRoom {
-        roomname: String
-    },
+    LeaveRoom { roomname: String },
     #[serde(rename = "DISCONNECT")]
     Disconect,
 }
-

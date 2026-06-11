@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use crate::view::Status;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
-pub(crate)  enum TypeReciveMesagges {
+pub(crate) enum TypeReciveMesagges {
     #[serde(rename = "RESPONSE")]
     Response {
         operation: OperationType,
@@ -13,58 +13,34 @@ pub(crate)  enum TypeReciveMesagges {
         extra: Option<String>,
     },
     #[serde(rename = "NEW_USER")]
-    NewUser {
-        username: String
-    },
+    NewUser { username: String },
     #[serde(rename = "NEW_STATUS")]
-    NewStatus {
-        username: String,
-        status: Status
-    },
+    NewStatus { username: String, status: Status },
     #[serde(rename = "USER_LIST")]
-    UserList {
-        users: HashMap<String, Status>
-    },
+    UserList { users: HashMap<String, Status> },
     #[serde(rename = "TEXT_FROM")]
-    TextFrom {
-        username: String,
-        text: String,
-    },
+    TextFrom { username: String, text: String },
     #[serde(rename = "PUBLIC_TEXT_FROM")]
-    PublicTextFrom {
-        username: String,
-        text: String
-    },
+    PublicTextFrom { username: String, text: String },
     #[serde(rename = "INVITATION")]
-    Invitation {
-        username: String,
-        roomname: String,
-    },
+    Invitation { username: String, roomname: String },
     #[serde(rename = "JOINED_ROOM")]
-    JoinedRoom {
-        roomname: String,
-        username: String
-    },
+    JoinedRoom { roomname: String, username: String },
     #[serde(rename = "ROOM_USER_LIST")]
     RoomUserList {
         roomname: String,
-        users: HashMap<String, Status>
+        users: HashMap<String, Status>,
     },
     #[serde(rename = "ROOM_TEXT_FROM")]
     RoomTextFrom {
         roomname: String,
         username: String,
-        text: String
+        text: String,
     },
     #[serde(rename = "LEFT_ROOM")]
-    LeftRoom {
-        roomname: String,
-        username: String
-    },
+    LeftRoom { roomname: String, username: String },
     #[serde(rename = "DISCONNECTED")]
-    Disconnected {
-        username: String
-    }
+    Disconnected { username: String },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -86,7 +62,7 @@ pub(crate) enum OperationType {
     #[serde(rename = "NEW_ROOM")]
     NewRoom,
     #[serde(rename = "INVALID")]
-    Invalid
+    Invalid,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -108,7 +84,5 @@ pub(crate) enum Result {
     #[serde(rename = "NOT_IDENTIFIED")]
     NotIdentified,
     #[serde(rename = "INVALID")]
-    Invalid
+    Invalid,
 }
-
-

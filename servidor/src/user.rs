@@ -1,14 +1,13 @@
-use tokio::sync::Mutex;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use tokio::sync::mpsc::Sender;
-
 
 pub struct User {
     pub name: String,
-    pub tx : Sender<Vec<u8>>,
+    pub tx: Sender<Vec<u8>>,
     pub state: Mutex<State>,
     pub rooms_keys: Mutex<Vec<String>>,
-    pub invitations_room_keys: Mutex<Vec<String>>
+    pub invitations_room_keys: Mutex<Vec<String>>,
 }
 impl User {
     pub(crate) fn new(name: String, tx: Sender<Vec<u8>>) -> User {
@@ -20,7 +19,7 @@ impl User {
             tx,
             state,
             rooms_keys,
-            invitations_room_keys
+            invitations_room_keys,
         }
     }
 }
@@ -32,4 +31,3 @@ pub enum State {
     Away,
     Active,
 }
-
