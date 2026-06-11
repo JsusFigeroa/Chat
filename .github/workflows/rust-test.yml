@@ -28,10 +28,10 @@ jobs:
           shared-key: "cargo-cache"
 
       - name: Verificar formato
-        uses: cargo fmt --check
+        run: cargo fmt --check
 
       - name: Analizar código
-        uses: cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Ejecutar test del server
-        uses: cargo test -p servidor
+        run: cargo test -p servidor
