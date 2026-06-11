@@ -1,0 +1,12 @@
+node_modules/
+.nuxt/
+.output/
+dist/
+.nitro/
+.cache/
+*.log
+src-tauri/target/
+src-tauri/binaries/
+.DS_Store
+.AppleDouble
+.LSOverride
