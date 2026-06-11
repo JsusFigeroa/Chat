@@ -1,7 +1,14 @@
-use servidor::server::Server;
-use tokio::{io::{BufReader}, net::{TcpStream, tcp::{OwnedReadHalf, OwnedWriteHalf}}};
 use serde_json::json;
-use tokio::io::{AsyncWriteExt};
+use servidor::server::Server;
+use servidor::type_recive_messages::TypeReciveMessages;
+use tokio::io::AsyncWriteExt;
+use tokio::{
+    io::BufReader,
+    net::{
+        TcpStream,
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+    },
+};
 
 pub fn clean_readed_line(line: &str) -> &str {
     let trim_line = line.trim();
@@ -29,3 +36,10 @@ pub async fn start_server(port: u16) {
     });
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 }
+
+pub fn generate_vec_msg(message: &TypeReciveMessages) -> Vec<u8> {
+    let mut msg = serde_json::to_vec(message).unwrap();
+    msg.push(b'\n');
+    return msg;
+}
+
