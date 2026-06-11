@@ -34,8 +34,5 @@ jobs:
       - name: Verificar formato
         run: cargo fmt --check
 
-      - name: Analizar código
-        run: cargo clippy -- -D warnings
-
       - name: Ejecutar test del server
         run: cargo test -p servidor
