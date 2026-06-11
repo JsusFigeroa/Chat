@@ -19,6 +19,11 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
+      - name: Instalar dependencias nativas del sistema (GLib y GObject)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libglib2.0-dev
+
       - name: Configurar Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
