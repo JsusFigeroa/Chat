@@ -41,7 +41,7 @@ impl Room {
             return;
         }
         let users = &self.users;
-        let usr_sender = username_lowe.to_string();
+        let usr_sender = username_lowe.clone();
         let mut senders = Vec::new();
         for kv in users {
             if kv.key() == &usr_sender {
@@ -73,12 +73,12 @@ impl Room {
             invite_users.push(user);
         }
         let mut senders = Vec::new();
-        for user in invite_users.iter() {
+        for user in &invite_users {
             senders.push(user.tx.clone());
         }
         for user in invite_users {
             let mut invitation_room_keys_guard = user.invitations_room_keys.lock().await;
-            (*invitation_room_keys_guard).push(self.name.to_lowercase());
+            invitation_room_keys_guard.push(self.name.to_lowercase());
             drop(invitation_room_keys_guard);
             self.guests.insert(user.name.to_lowercase(), user);
         }
@@ -100,18 +100,15 @@ impl Room {
         if let Some((name, user)) = self.guests.remove(&username_to_lower) {
             let msg = generate_new_room_user_msg(&self.name, usr_who_accepted);
             let mut senders = Vec::new();
-            for kv in self.users.iter() {
+            for kv in &self.users {
                 senders.push(kv.tx.clone());
             }
             let mut invitations_guard = user.invitations_room_keys.lock().await;
-            match (*invitations_guard)
+            if let Some(index) = invitations_guard
                 .iter()
                 .rposition(|key| key == &self.name.to_lowercase())
             {
-                Some(index) => {
-                    (*invitations_guard).remove(index);
-                }
-                None => {}
+                invitations_guard.remove(index);
             }
             drop(invitations_guard);
             let mut room_keys_guard = user.rooms_keys.lock().await;
@@ -135,7 +132,7 @@ impl Room {
         }
         let mut map = HashMap::new();
         let mut users = Vec::with_capacity(self.users.len());
-        for user in self.users.iter() {
+        for user in &self.users {
             users.push(user.clone());
         }
         for user in users {
@@ -160,7 +157,7 @@ impl Room {
             self.users.remove(&username_lower);
             let msg = generate_user_leaved_room(&user_to_remove, &self.name);
             let mut senders = Vec::new();
-            for user in self.users.iter() {
+            for user in &self.users {
                 let tx = user.tx.clone();
                 senders.push(tx);
             }
@@ -183,9 +180,9 @@ impl Room {
         let username_lower = user_to_remove.to_lowercase();
         if self.users.contains_key(&username_lower) {
             self.users.remove(&username_lower);
-            let msg = generate_user_leaved_room(&user_to_remove, &self.name);
+            let msg = generate_user_leaved_room(user_to_remove, &self.name);
             let mut senders = Vec::new();
-            for user in self.users.iter() {
+            for user in &self.users {
                 let tx = user.tx.clone();
                 senders.push(tx);
             }
