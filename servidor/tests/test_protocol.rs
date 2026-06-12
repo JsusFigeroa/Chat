@@ -30,12 +30,12 @@ async fn test_identify() {
     let msg = json!({"type":"IDENTIFY", "username":"Jesus"});
     let mut message = serde_json::to_vec(&msg).unwrap();
     message.push(b'\n');
-    let Ok(_) = sok_writer.write_all(&message).await else {
+    let Ok(()) = sok_writer.write_all(&message).await else {
         panic!()
     };
     let mut line = String::new();
     let bytes = reader.read_line(&mut line).await.unwrap();
-    if bytes == 0 {}
+    assert_ne!(bytes, 0);
     let clean_line = clean_readed_line(&line);
     if let TypeSendMessages::Response {
         operation: Operations::Identify,
@@ -65,21 +65,19 @@ async fn test_usr_already_exist_identify() {
     let msg = json!({"type":"IDENTIFY", "username":"Jesus"});
     let mut message = serde_json::to_vec(&msg).unwrap();
     message.push(b'\n');
-    let Ok(_) = sok_writer.write_all(&message).await else {
+    let Ok(()) = sok_writer.write_all(&message).await else {
         panic!()
     };
     let other_connection = TcpStream::connect("127.0.0.1:4001").await;
     let other_socket = other_connection.expect("Error al conectarse al servidor");
     let (other_sok_reader, mut other_sok_writer) = other_socket.into_split();
     let mut reader = BufReader::new(other_sok_reader);
-    let Ok(_) = other_sok_writer.write_all(&message).await else {
+    let Ok(()) = other_sok_writer.write_all(&message).await else {
         panic!()
     };
     let mut line = String::new();
     let bytes = reader.read_line(&mut line).await.unwrap();
-    if bytes == 0 {
-        panic!()
-    }
+    assert_ne!(bytes, 0);
     let clean_line = clean_readed_line(&line);
     if let TypeSendMessages::Response {
         operation: Operations::Identify,
@@ -88,7 +86,7 @@ async fn test_usr_already_exist_identify() {
     } = serde_json::from_str(clean_line).unwrap()
     {
         if let Some(username) = extra {
-            assert_eq!(username, "Jesus".to_string())
+            assert_eq!(username, "Jesus".to_string());
         } else {
             panic!();
         }
@@ -106,14 +104,10 @@ async fn test_users() {
     writer.write_all(&msg).await.unwrap();
     let mut line = String::new();
     let bytes = reader.read_line(&mut line).await.unwrap();
-    if bytes == 0 {
-        panic!();
-    }
+    assert_ne!(bytes, 0);
     line.clear();
     let bytes = reader.read_line(&mut line).await.unwrap();
-    if bytes == 0 {
-        panic!();
-    }
+    assert_eq!(bytes, 0);
     let clean_line = clean_readed_line(&line);
     let recived_json: Value = serde_json::from_str(clean_line).unwrap();
     let mut map_user = HashMap::new();
@@ -136,17 +130,13 @@ async fn test_change_status() {
         .await
         .expect("Error esperando mensaje de confirmación de identificación")
         .unwrap();
-    if bytes == 0 {
-        panic!("La respuesta a la identificación no fue la esperada");
-    }
+    assert_ne!(bytes, 0);
     line.clear();
     bytes = timeout(Duration::from_secs(2), second_reader.read_line(&mut line))
         .await
         .expect("Error en la espera de confirmación de segunda identificación")
         .unwrap();
-    if bytes == 0 {
-        panic!("La respuesta a la identificación no fue la esperada");
-    }
+    assert_ne!(bytes, 0);
     line.clear();
     let message = TypeReciveMessages::Status {
         status: State::Away,
@@ -157,9 +147,7 @@ async fn test_change_status() {
         .await
         .expect("Error esperando mensaje de status")
         .unwrap();
-    if bytes == 0 {
-        panic!("El mensaje de cambio de status no fue recibido");
-    }
+    assert_eq!(bytes, 0);
     let clean_line = clean_readed_line(&line);
     let recived_json: Value = serde_json::from_str(clean_line).unwrap();
     let expected_type_message = TypeSendMessages::NewStatus {
