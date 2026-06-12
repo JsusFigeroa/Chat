@@ -107,7 +107,7 @@ async fn test_users() {
     assert_ne!(bytes, 0);
     line.clear();
     let bytes = reader.read_line(&mut line).await.unwrap();
-    assert_eq!(bytes, 0);
+    assert_ne!(bytes, 0);
     let clean_line = clean_readed_line(&line);
     let recived_json: Value = serde_json::from_str(clean_line).unwrap();
     let mut map_user = HashMap::new();
@@ -147,7 +147,7 @@ async fn test_change_status() {
         .await
         .expect("Error esperando mensaje de status")
         .unwrap();
-    assert_eq!(bytes, 0);
+    assert_ne!(bytes, 0);
     let clean_line = clean_readed_line(&line);
     let recived_json: Value = serde_json::from_str(clean_line).unwrap();
     let expected_type_message = TypeSendMessages::NewStatus {
