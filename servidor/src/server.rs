@@ -139,7 +139,9 @@ impl Server {
                     username = new_username;
                 } else {
                     let msg = server_mesagges::generate_not_valid_msg();
-                    writter.write_all(&msg).await;
+                    let Ok(()) = writter.write_all(&msg).await else {
+                        return Err(());
+                    };
                     return Err(());
                 }
             }
@@ -280,49 +282,16 @@ impl Server {
                     .await;
             }
             TypeReciveMessages::LeaveRoom { roomname } => {
-                if self.rooms.contains_key(&roomname.to_lowercase()) {
-                    let entry = self.rooms.entry(roomname.to_lowercase());
-                    match entry {
-                        Entry::Occupied(mut locked_entry) => {
-                            let room = locked_entry.get_mut();
-                            let num_users =
-                                room.remove_user(letter.reply_to, letter.usr_sender).await;
-                            if num_users == 0 {
-                                locked_entry.remove();
-                            }
-                        }
-                        Entry::Vacant(_) => {}
-                    }
-                } else {
-                    let msg = server_mesagges::leave_room_not_such_room(&roomname);
-                    let _ = letter.reply_to.send(msg).await;
-                }
+                self.process_leave_room_msg(&roomname, &letter.usr_sender, letter.reply_to)
+                    .await;
             }
             TypeReciveMessages::RoomText { roomname, text } => {
-                if self.rooms.contains_key(&roomname.to_lowercase()) {
-                    let kv_opt = self.rooms.get(&roomname.to_lowercase());
-                    if let Some(kv) = kv_opt {
-                        let room = kv.value();
-                        room.send_msg(letter.usr_sender, text, letter.reply_to)
-                            .await;
-                    }
-                } else {
-                    let msg = server_mesagges::room_text_no_such_room(&roomname);
-                    let _ = letter.reply_to.send(msg).await;
-                }
+                self.process_room_text(&roomname, &text, letter.reply_to, &letter.usr_sender)
+                    .await;
             }
             TypeReciveMessages::RoomUsers { roomname } => {
-                let roomname_lower = &roomname.to_lowercase();
-                let room = {
-                    if let Some(kv) = self.rooms.get(roomname_lower) {
-                        kv.value().clone()
-                    } else {
-                        let msg = server_mesagges::room_users_no_such_room(&roomname);
-                        let _ = letter.reply_to.send(msg).await;
-                        return;
-                    }
-                };
-                room.send_users(letter.reply_to, letter.usr_sender).await;
+                self.process_room_users_msg(&roomname, &letter.usr_sender, letter.reply_to)
+                    .await;
             }
         }
     }
@@ -524,5 +493,68 @@ impl Server {
             let msg = server_mesagges::new_room_success(roomname);
             let _ = reply_to.send(msg).await;
         }
+    }
+
+    async fn process_leave_room_msg(
+        self: Arc<Self>,
+        roomname: &str,
+        user_sender: &str,
+        reply_to: Sender<Vec<u8>>,
+    ) {
+        if self.rooms.contains_key(&roomname.to_lowercase()) {
+            let entry = self.rooms.entry(roomname.to_lowercase());
+            match entry {
+                Entry::Occupied(mut locked_entry) => {
+                    let room = locked_entry.get_mut();
+                    let num_users = room.remove_user(reply_to, user_sender.to_owned()).await;
+                    if num_users == 0 {
+                        locked_entry.remove();
+                    }
+                }
+                Entry::Vacant(_) => {}
+            }
+        } else {
+            let msg = server_mesagges::leave_room_not_such_room(roomname);
+            let _ = reply_to.send(msg).await;
+        }
+    }
+
+    async fn process_room_text(
+        self: Arc<Self>,
+        roomname: &str,
+        text: &str,
+        reply_to: Sender<Vec<u8>>,
+        user_sender: &str,
+    ) {
+        if self.rooms.contains_key(&roomname.to_lowercase()) {
+            let kv_opt = self.rooms.get(&roomname.to_lowercase());
+            if let Some(kv) = kv_opt {
+                let room = kv.value();
+                room.send_msg(user_sender.to_owned(), text.to_owned(), reply_to)
+                    .await;
+            }
+        } else {
+            let msg = server_mesagges::room_text_no_such_room(roomname);
+            let _ = reply_to.send(msg).await;
+        }
+    }
+
+    async fn process_room_users_msg(
+        self: Arc<Self>,
+        roomname: &str,
+        user_sender: &str,
+        reply_to: Sender<Vec<u8>>,
+    ) {
+        let roomname_lower = &roomname.to_lowercase();
+        let room = {
+            if let Some(kv) = self.rooms.get(roomname_lower) {
+                kv.value().clone()
+            } else {
+                let msg = server_mesagges::room_users_no_such_room(roomname);
+                let _ = reply_to.send(msg).await;
+                return;
+            }
+        };
+        room.send_users(reply_to, user_sender.to_owned()).await;
     }
 }
