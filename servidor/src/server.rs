@@ -72,6 +72,7 @@ impl Server {
             .read_line(&mut line)
             .await
         {
+            Ok(0) => return,
             Ok(n) if n >= read_limit && !line.ends_with('\n') => {
                 return;
             }
@@ -202,6 +203,7 @@ impl Server {
         let limit = 1024;
         loop {
             match (&mut reader).take(limit as u64).read_line(&mut line).await {
+                Ok(0) => return,
                 Ok(n) if n >= limit && !line.ends_with('\n') => {
                     break;
                 }

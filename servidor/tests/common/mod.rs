@@ -22,7 +22,7 @@ pub async fn identify_client(addr: &str, name: &str) -> (BufReader<OwnedReadHalf
     let msg = json!({"type":"IDENTIFY", "username":name});
     let mut message = serde_json::to_vec(&msg).unwrap();
     message.push(b'\n');
-    let Ok(_) = sok_writer.write_all(&message).await else {
+    let Ok(()) = sok_writer.write_all(&message).await else {
         panic!()
     };
     let reader = BufReader::new(sok_reader);
@@ -40,5 +40,5 @@ pub async fn start_server(port: u16) {
 pub fn generate_vec_msg(message: &TypeReciveMessages) -> Vec<u8> {
     let mut msg = serde_json::to_vec(message).unwrap();
     msg.push(b'\n');
-    return msg;
+    msg
 }

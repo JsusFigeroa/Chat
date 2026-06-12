@@ -1,8 +1,10 @@
-use super::*;
 use crate::type_recive_messages::TypeReciveMessages;
+use crate::user::State;
 use crate::user::User;
+use ::dashmap::DashMap;
+use ::tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader};
 use std::collections::HashMap;
-use tokio::io::AsyncRead;
+use std::sync::Arc;
 
 /// Función que devuelve Ok si el usuario respondió con la identificación de acuerdo al protocolo y
 /// error en otro caso.
@@ -11,12 +13,8 @@ pub(super) async fn retry_identify<T: Unpin + AsyncRead>(
 ) -> Result<String, ()> {
     let mut line = String::new();
     match (&mut reader).take(1024).read_line(&mut line).await {
-        Ok(0) => {
-            return Err(());
-        }
-        Ok(n) if n >= 1024 && !line.ends_with('\n') => {
-            return Err(());
-        }
+        Ok(0) => Err(()),
+        Ok(n) if n >= 1024 && !line.ends_with('\n') => Err(()),
         Ok(_n) => {
             let clean_line = line.trim_matches(|b| b == '\0');
             let Ok(message) = serde_json::from_str(clean_line) else {
@@ -24,12 +22,10 @@ pub(super) async fn retry_identify<T: Unpin + AsyncRead>(
             };
             if let TypeReciveMessages::Identify { username } = message {
                 return Ok(username);
-            };
-            return Err(());
+            }
+            Err(())
         }
-        Err(_) => {
-            return Err(());
-        }
+        _ => Err(()),
     }
 }
 
@@ -45,7 +41,7 @@ pub(super) async fn generate_map_users(
     }
     for user in user_list {
         let status_guard = user.state.lock().await;
-        let state = (*status_guard).clone();
+        let state = *status_guard;
         let username = user.name.clone();
         map.insert(username, state);
     }
