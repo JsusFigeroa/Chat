@@ -238,180 +238,46 @@ impl Server {
     async fn procces_letter_aux(self: Arc<Self>, letter: Letter<Vec<u8>>) {
         match letter.msg {
             TypeReciveMessages::PublicText { text } => {
-                let mut transmisors = Vec::new();
-                for kv in self.users.iter() {
-                    if kv.name.to_lowercase() == letter.usr_sender.to_lowercase() {
-                        continue;
-                    }
-                    transmisors.push(kv.tx.clone());
-                }
-                let msg = generate_public_text_from(&letter.usr_sender, &text);
-                for tx in transmisors {
-                    let Ok(()) = tx.send(msg.clone()).await else {
-                        return;
-                    };
-                }
+                self.procces_public_text_msg(&letter.usr_sender, &text)
+                    .await;
             }
             TypeReciveMessages::Status { status } => {
-                let usr_sender_lower = &letter.usr_sender.to_lowercase();
-                let user = {
-                    if let Some(kv) = self.users.get(usr_sender_lower) {
-                        kv.value().clone()
-                    } else {
-                        return;
-                    }
-                };
-                let mut status_guard = user.state.lock().await;
-                *status_guard = status.clone();
-                let mut transmisors = Vec::new();
-                let msg = generate_new_status_msg(&letter.usr_sender, status);
-                for kv in self.users.iter() {
-                    if kv.key() == usr_sender_lower {
-                        continue;
-                    }
-                    transmisors.push(kv.tx.clone());
-                }
-                for transmisor in transmisors {
-                    let _ = transmisor.send(msg.clone()).await;
-                }
+                self.process_status_msg(&letter.usr_sender, status).await;
             }
             TypeReciveMessages::Users => {
-                let map = aux_functions::generate_map_users(self.users.clone()).await;
-                let msg = generate_users_msg(map);
-                let _ = letter.reply_to.send(msg).await;
+                self.process_users_msg(letter.reply_to).await;
             }
             TypeReciveMessages::Text { username, text } => {
-                let username_lower = &username.to_lowercase();
-                let msg = generate_text_from_msg(&letter.usr_sender, &text);
-                let user = {
-                    if let Some(kv) = self.users.get_mut(username_lower) {
-                        kv.value().clone()
-                    } else {
-                        let msg = server_mesagges::generate_text_user_not_exist(&username);
-                        let _ = letter.reply_to.send(msg).await;
-                        return;
-                    }
-                };
-                let _ = user.tx.send(msg).await;
+                self.process_private_text_msg(
+                    &username,
+                    &text,
+                    &letter.usr_sender,
+                    letter.reply_to,
+                )
+                .await;
             }
             TypeReciveMessages::Identify { username } => {
-                let msg = generate_new_user_msg(&username);
-                let mut transmisors = Vec::with_capacity(self.users.len());
-                for kv in self.users.iter() {
-                    if kv.key() == &username.to_lowercase() {
-                        continue;
-                    }
-                    transmisors.push(kv.tx.clone());
-                }
-                for tx in transmisors {
-                    let _ = tx.send(msg.clone()).await;
-                }
+                self.process_identify_msg(&username).await;
             }
 
             TypeReciveMessages::Disconect => {
-                if let Some((name, user)) = self.users.remove(&letter.usr_sender.to_lowercase()) {
-                    let guard_room_keys = user.rooms_keys.lock().await;
-                    let mut user_rooms = Vec::with_capacity((*guard_room_keys).len());
-                    for room_key in &*guard_room_keys {
-                        let room = {
-                            if let Some(kv) = self.rooms.get(room_key) {
-                                kv.value().clone()
-                            } else {
-                                continue;
-                            }
-                        };
-                        user_rooms.push(room);
-                        // room.remove_disconected_user(&name).await;
-                    }
-                    drop(guard_room_keys);
-                    for room in user_rooms {
-                        room.remove_disconected_user(&name).await;
-                    }
-                    let guard_invitation_room_keys = user.invitations_room_keys.lock().await;
-                    for room_key in &*guard_invitation_room_keys {
-                        let room = {
-                            if let Some(kv) = self.rooms.get(room_key) {
-                                kv.value().clone()
-                            } else {
-                                continue;
-                            }
-                        };
-                        room.remove_invitation(&name);
-                    }
-                    drop(guard_invitation_room_keys);
-                    let mut transmisors = Vec::new();
-                    for kv in self.users.iter() {
-                        transmisors.push(kv.tx.clone());
-                    }
-                    let msg = server_mesagges::generate_disconected_msg(&letter.usr_sender);
-                    for tx in transmisors {
-                        let _ = tx.send(msg.clone()).await;
-                    }
-                }
+                self.process_disconect_msg(&letter.usr_sender).await;
             }
 
             TypeReciveMessages::Invite {
                 roomname,
                 usernames,
             } => {
-                if self.rooms.contains_key(&roomname.to_lowercase()) {
-                    let opt_user = usernames
-                        .iter()
-                        .find(|&k| !self.users.contains_key(&k.to_lowercase()));
-                    if let Some(username) = opt_user {
-                        let msg = server_mesagges::no_such_user_invite_msg(username);
-                        let _ = letter.reply_to.send(msg).await;
-                    } else {
-                        let mut users = Vec::new();
-                        for username in usernames {
-                            let opt_user = self
-                                .users
-                                .get(&username.to_lowercase())
-                                .map(|kv| kv.value().clone());
-                            if let Some(user) = opt_user {
-                                users.push(user);
-                            }
-                        }
-                        let room = {
-                            if let Some(kv) = self.rooms.get(&roomname.to_lowercase()) {
-                                kv.value().clone()
-                            } else {
-                                return;
-                            }
-                        };
-                        room.process_invitation(users, &letter.usr_sender).await;
-                    }
-                } else {
-                    let msg = server_mesagges::no_such_room_invite_msg(&roomname);
-                    let _ = letter.reply_to.send(msg).await;
-                }
+                self.process_invite_msg(&roomname, usernames, letter.reply_to, &letter.usr_sender)
+                    .await;
             }
             TypeReciveMessages::JoinRoom { roomname } => {
-                let roomname_lower = &roomname.to_lowercase();
-                let room = {
-                    if let Some(kv) = self.rooms.get(roomname_lower) {
-                        kv.value().clone()
-                    } else {
-                        let msg = server_mesagges::no_such_room_join_room_msg(&roomname);
-                        let _ = letter.reply_to.send(msg).await;
-                        return;
-                    }
-                };
-                room.accept_invitation(&letter.usr_sender, letter.reply_to)
+                self.process_join_room_msg(&roomname, letter.reply_to, &letter.usr_sender)
                     .await;
             }
             TypeReciveMessages::NewRoom { roomname } => {
-                if let Some(user) = self
-                    .users
-                    .get(&letter.usr_sender.to_lowercase())
-                    .map(|k| k.value().clone())
-                {
-                    let roomname_lower = roomname.to_lowercase();
-                    let room = Arc::new(Room::new(roomname.clone(), user));
-                    self.rooms.insert(roomname_lower, room);
-                    let msg = server_mesagges::new_room_success(&roomname);
-                    let _ = letter.reply_to.send(msg).await;
-                }
+                self.process_new_room_msg(&roomname, &letter.usr_sender, letter.reply_to)
+                    .await;
             }
             TypeReciveMessages::LeaveRoom { roomname } => {
                 if self.rooms.contains_key(&roomname.to_lowercase()) {
@@ -458,6 +324,205 @@ impl Server {
                 };
                 room.send_users(letter.reply_to, letter.usr_sender).await;
             }
+        }
+    }
+    async fn procces_public_text_msg(self: Arc<Self>, user_sender: &str, text: &str) {
+        let mut transmisors = Vec::new();
+        for user in self.users.iter() {
+            if user.name.to_lowercase() == user_sender.to_lowercase() {
+                continue;
+            }
+            transmisors.push(user.tx.clone());
+        }
+        let msg = generate_public_text_from(user_sender, text);
+        for tx in transmisors {
+            let Ok(()) = tx.send(msg.clone()).await else {
+                return;
+            };
+        }
+    }
+
+    async fn process_status_msg(self: Arc<Self>, user_sender: &str, status: State) {
+        let usr_sender_lower = user_sender.to_lowercase();
+        let user = {
+            if let Some(kv) = self.users.get(&usr_sender_lower) {
+                kv.value().clone()
+            } else {
+                return;
+            }
+        };
+        let mut status_guard = user.state.lock().await;
+        *status_guard = status;
+        drop(status_guard);
+        let mut transmisors = Vec::new();
+        let msg = generate_new_status_msg(user_sender, status);
+        for kv in self.users.iter() {
+            if kv.key() == &usr_sender_lower {
+                continue;
+            }
+            transmisors.push(kv.tx.clone());
+        }
+        for transmisor in transmisors {
+            let _ = transmisor.send(msg.clone()).await;
+        }
+    }
+
+    async fn process_users_msg(self: Arc<Self>, reply_to: Sender<Vec<u8>>) {
+        let map = aux_functions::generate_map_users(self.users.clone()).await;
+        let msg = generate_users_msg(map);
+        let _ = reply_to.send(msg).await;
+    }
+
+    async fn process_private_text_msg(
+        self: Arc<Self>,
+        username: &str,
+        text: &str,
+        user_sender: &str,
+        reply_to: Sender<Vec<u8>>,
+    ) {
+        let username_lower = &username.to_lowercase();
+        let msg = generate_text_from_msg(user_sender, text);
+        let user = {
+            if let Some(kv) = self.users.get_mut(username_lower) {
+                kv.value().clone()
+            } else {
+                let msg = server_mesagges::generate_text_user_not_exist(username);
+                let _ = reply_to.send(msg).await;
+                return;
+            }
+        };
+        let _ = user.tx.send(msg).await;
+    }
+    async fn process_identify_msg(self: Arc<Self>, username: &str) {
+        let msg = generate_new_user_msg(username);
+        let mut transmisors = Vec::with_capacity(self.users.len());
+        for kv in self.users.iter() {
+            if kv.key() == &username.to_lowercase() {
+                continue;
+            }
+            transmisors.push(kv.tx.clone());
+        }
+        for tx in transmisors {
+            let _ = tx.send(msg.clone()).await;
+        }
+    }
+
+    async fn process_disconect_msg(self: Arc<Self>, user_sender: &str) {
+        if let Some((name, user)) = self.users.remove(&user_sender.to_lowercase()) {
+            let guard_room_keys = user.rooms_keys.lock().await;
+            let mut user_rooms = Vec::with_capacity((*guard_room_keys).len());
+            for room_key in &*guard_room_keys {
+                let room = {
+                    if let Some(kv) = self.rooms.get(room_key) {
+                        kv.value().clone()
+                    } else {
+                        continue;
+                    }
+                };
+                user_rooms.push(room);
+            }
+            drop(guard_room_keys);
+            for room in user_rooms {
+                room.remove_disconected_user(&name).await;
+            }
+            let guard_invitation_room_keys = user.invitations_room_keys.lock().await;
+            for room_key in &*guard_invitation_room_keys {
+                let room = {
+                    if let Some(kv) = self.rooms.get(room_key) {
+                        kv.value().clone()
+                    } else {
+                        continue;
+                    }
+                };
+                room.remove_invitation(&name);
+            }
+            drop(guard_invitation_room_keys);
+            let mut transmisors = Vec::new();
+            for kv in self.users.iter() {
+                transmisors.push(kv.tx.clone());
+            }
+            let msg = server_mesagges::generate_disconected_msg(user_sender);
+            for tx in transmisors {
+                let _ = tx.send(msg.clone()).await;
+            }
+        }
+    }
+
+    async fn process_invite_msg(
+        self: Arc<Self>,
+        roomname: &str,
+        usernames: Vec<String>,
+        reply_to: Sender<Vec<u8>>,
+        user_sender: &str,
+    ) {
+        if self.rooms.contains_key(&roomname.to_lowercase()) {
+            let opt_user = usernames
+                .iter()
+                .find(|&k| !self.users.contains_key(&k.to_lowercase()));
+            if let Some(username) = opt_user {
+                let msg = server_mesagges::no_such_user_invite_msg(username);
+                let _ = reply_to.send(msg).await;
+            } else {
+                let mut users = Vec::new();
+                for username in usernames {
+                    let opt_user = self
+                        .users
+                        .get(&username.to_lowercase())
+                        .map(|kv| kv.value().clone());
+                    if let Some(user) = opt_user {
+                        users.push(user);
+                    }
+                }
+                let room = {
+                    if let Some(kv) = self.rooms.get(&roomname.to_lowercase()) {
+                        kv.value().clone()
+                    } else {
+                        return;
+                    }
+                };
+                room.process_invitation(users, user_sender).await;
+            }
+        } else {
+            let msg = server_mesagges::no_such_room_invite_msg(roomname);
+            let _ = reply_to.send(msg).await;
+        }
+    }
+
+    async fn process_join_room_msg(
+        self: Arc<Self>,
+        roomname: &str,
+        reply_to: Sender<Vec<u8>>,
+        user_sender: &str,
+    ) {
+        let roomname_lower = &roomname.to_lowercase();
+        let room = {
+            if let Some(kv) = self.rooms.get(roomname_lower) {
+                kv.value().clone()
+            } else {
+                let msg = server_mesagges::no_such_room_join_room_msg(roomname);
+                let _ = reply_to.send(msg).await;
+                return;
+            }
+        };
+        room.accept_invitation(user_sender, reply_to).await;
+    }
+
+    async fn process_new_room_msg(
+        self: Arc<Self>,
+        roomname: &str,
+        user_sender: &str,
+        reply_to: Sender<Vec<u8>>,
+    ) {
+        if let Some(user) = self
+            .users
+            .get(&user_sender.to_lowercase())
+            .map(|k| k.value().clone())
+        {
+            let roomname_lower = roomname.to_lowercase();
+            let room = Arc::new(Room::new(roomname.to_string(), user));
+            self.rooms.insert(roomname_lower, room);
+            let msg = server_mesagges::new_room_success(roomname);
+            let _ = reply_to.send(msg).await;
         }
     }
 }
